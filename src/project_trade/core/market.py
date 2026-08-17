@@ -81,3 +81,23 @@ def get_history(symbol: str, period: str = "6mo", interval: str = "1d"):
     """Return a pandas DataFrame of OHLCV history."""
     t = yf.Ticker(symbol)
     return t.history(period=period, interval=interval)
+
+
+def search_symbols(query: str, count: int = 8) -> list[dict]:
+    """Live ticker search across every exchange Yahoo Finance covers (NSE, BSE,
+    NASDAQ, NYSE, etc.) — no hardcoded symbol list, free, no API key."""
+    if not query or not query.strip():
+        return []
+    results = yf.Search(query, max_results=count).quotes
+    rows = []
+    for r in results:
+        if r.get("quoteType") != "EQUITY":
+            continue
+        rows.append(
+            {
+                "symbol": r.get("symbol"),
+                "name": r.get("longname") or r.get("shortname") or "",
+                "exchange": r.get("exchDisp") or r.get("exchange") or "",
+            }
+        )
+    return rows

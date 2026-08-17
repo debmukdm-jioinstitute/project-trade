@@ -35,6 +35,11 @@ def api_movers(category: str):
     return market.get_movers(category)
 
 
+@app.get("/api/search/{query}")
+def api_search(query: str, count: int = 8):
+    return market.search_symbols(query, count)
+
+
 @app.get("/api/news/{symbol}")
 def api_news(symbol: str, count: int = 8):
     return news_core.get_news(symbol, count)

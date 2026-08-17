@@ -30,6 +30,17 @@
   .split { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
   .note { color:#666; font-size:.78rem; margin-top:6px; }
   .status { color:#ff9f0a; font-size:.85rem; }
+  .search-box { position:relative; }
+  .search-dropdown {
+    position:absolute; top:100%; left:0; right:0; margin-top:4px; z-index:10;
+    background:#14181d; border:1px solid #2a2f36; border-radius:4px; max-height:280px;
+    overflow-y:auto; box-shadow:0 8px 24px rgba(0,0,0,.5);
+  }
+  .search-item { padding:8px 12px; cursor:pointer; font-size:.85rem; border-bottom:1px solid #1c2026; }
+  .search-item:last-child { border-bottom:none; }
+  .search-item:hover, .search-item.active { background:#1c2430; }
+  .search-item .sym { color:#ff9f0a; font-weight:bold; }
+  .search-item .exch { color:#666; font-size:.75rem; float:right; }
 </style>
 </head>
 <body>
@@ -87,9 +98,13 @@
   <span class="back" onclick="showHome()">&larr; Back</span>
   <h2>DCF Valuation</h2>
   <div class="row">
-    <input id="dcfSymbol" placeholder="AAPL" value="AAPL">
-    <button onclick="loadDCF()">Run DCF</button>
+    <div class="search-box">
+      <input id="dcfSearchInput" placeholder="Search any stock — Indian or US (e.g. Reliance, Apple, TCS, Tesla)..." autocomplete="off" style="width:380px">
+      <div id="dcfSearchResults" class="search-dropdown hidden"></div>
+    </div>
+    <button onclick="runDCFSelected()">Run DCF</button>
   </div>
+  <div id="dcfSelected" class="note"></div>
   <table id="dcfTable"></table>
 </div>
 
@@ -177,6 +192,7 @@ function showSection(name) {
   document.getElementById('section-' + name).classList.remove('hidden');
   if (name === 'nifty' && !window._niftyLoaded) { window._niftyLoaded = true; loadIndex('nifty', '/api/indices/nifty50'); }
   if (name === 'sensex' && !window._sensexLoaded) { window._sensexLoaded = true; loadIndex('sensex', '/api/indices/sensex30'); }
+  if (name === 'dcf') { initDCFSearch(); }
 }
 
 function showHome() {
@@ -195,8 +211,8 @@ async function loadQuote() {
     <tr><td>Volume</td><td>${fmt(q.volume,0)}</td></tr>`;
 }
 
-async function loadDCF() {
-  const sym = document.getElementById('dcfSymbol').value;
+async function runDCFForSymbol(sym) {
+  document.getElementById('dcfTable').innerHTML = '<tr><td class="status">loading...</td></tr>';
   const r = await fetch(`/api/dcf/${sym}`); const d = await r.json();
   document.getElementById('dcfTable').innerHTML = `
     <tr><th>${d.symbol}</th><th></th></tr>
@@ -204,6 +220,58 @@ async function loadDCF() {
     <tr><td>Equity Value</td><td>${fmt(d.equity_value,0)}</td></tr>
     <tr><td>Implied Share Price</td><td>${fmt(d.implied_share_price)}</td></tr>
     <tr><td>Current Price</td><td>${fmt(d.seed.current_price)}</td></tr>`;
+}
+
+let _dcfSelectedSymbol = null;
+let _dcfSearchTimer = null;
+
+function debounceSearch(inputEl, resultsEl, onPick) {
+  inputEl.addEventListener('input', () => {
+    clearTimeout(_dcfSearchTimer);
+    const q = inputEl.value.trim();
+    if (q.length < 2) { resultsEl.classList.add('hidden'); resultsEl.innerHTML = ''; return; }
+    _dcfSearchTimer = setTimeout(async () => {
+      const r = await fetch(`/api/search/${encodeURIComponent(q)}`);
+      const items = await r.json();
+      if (!items.length) { resultsEl.classList.add('hidden'); resultsEl.innerHTML = ''; return; }
+      resultsEl.innerHTML = items.map(it =>
+        `<div class="search-item" data-symbol="${it.symbol}" data-name="${(it.name||'').replace(/"/g,'&quot;')}">
+           <span class="sym">${it.symbol}</span> ${it.name || ''}
+           <span class="exch">${it.exchange || ''}</span>
+         </div>`
+      ).join('');
+      resultsEl.classList.remove('hidden');
+      resultsEl.querySelectorAll('.search-item').forEach(el => {
+        el.addEventListener('click', () => onPick(el.dataset.symbol, el.dataset.name));
+      });
+    }, 300);
+  });
+  document.addEventListener('click', (e) => {
+    if (!inputEl.contains(e.target) && !resultsEl.contains(e.target)) {
+      resultsEl.classList.add('hidden');
+    }
+  });
+}
+
+function initDCFSearch() {
+  if (window._dcfSearchInit) return;
+  window._dcfSearchInit = true;
+  const input = document.getElementById('dcfSearchInput');
+  const results = document.getElementById('dcfSearchResults');
+  debounceSearch(input, results, (symbol, name) => {
+    _dcfSelectedSymbol = symbol;
+    input.value = `${symbol} — ${name}`;
+    results.classList.add('hidden');
+    document.getElementById('dcfSelected').innerText = `Selected: ${symbol}`;
+    runDCFForSymbol(symbol);   // auto-run on pick — no extra click needed
+  });
+}
+
+function runDCFSelected() {
+  const input = document.getElementById('dcfSearchInput');
+  const symbol = _dcfSelectedSymbol || input.value.trim().split(' ')[0];
+  if (!symbol) return;
+  runDCFForSymbol(symbol);
 }
 
 async function loadMovers() {
