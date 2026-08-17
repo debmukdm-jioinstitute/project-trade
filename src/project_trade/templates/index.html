@@ -6,82 +6,183 @@
 <style>
   :root { color-scheme: dark; }
   body { background:#0b0e11; color:#e6e6e6; font-family: "SF Mono", Menlo, monospace; margin:0; padding:24px; }
-  h1 { color:#ff9f0a; font-size:1.2rem; letter-spacing:.05em; }
-  h2 { color:#8ab4f8; font-size:.95rem; margin-top:2rem; border-bottom:1px solid #222; padding-bottom:4px; }
-  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; }
-  input, select, button { background:#14181d; color:#e6e6e6; border:1px solid #2a2f36; padding:6px 10px; font-family:inherit; }
+  h1 { color:#ff9f0a; font-size:1.4rem; letter-spacing:.05em; margin:0 0 4px; }
+  .subtitle { color:#888; font-size:.85rem; margin-bottom:28px; }
+  h2 { color:#8ab4f8; font-size:1rem; margin-top:1.5rem; border-bottom:1px solid #222; padding-bottom:6px; }
+  input, select, button { background:#14181d; color:#e6e6e6; border:1px solid #2a2f36; padding:7px 12px; font-family:inherit; font-size:.9rem; border-radius:4px; }
   button { cursor:pointer; }
   button:hover { border-color:#ff9f0a; }
   table { width:100%; border-collapse:collapse; font-size:.85rem; margin-top:8px; }
-  th, td { text-align:right; padding:4px 8px; border-bottom:1px solid #1c2026; }
+  th, td { text-align:right; padding:5px 10px; border-bottom:1px solid #1c2026; }
   th:first-child, td:first-child { text-align:left; }
   .up { color:#3ddc84; }
   .down { color:#ff5c5c; }
-  .row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .row { display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+  .hidden { display:none; }
+  .back { color:#ff9f0a; cursor:pointer; font-size:.85rem; margin-bottom:16px; display:inline-block; }
+  .back:hover { text-decoration:underline; }
+  .card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; margin-top:20px; }
+  .card { background:#12161b; border:1px solid #22272e; border-radius:8px; padding:18px; cursor:pointer; transition:border-color .15s; }
+  .card:hover { border-color:#ff9f0a; }
+  .card .icon { font-size:1.6rem; margin-bottom:8px; }
+  .card .title { font-weight:bold; color:#e6e6e6; margin-bottom:4px; }
+  .card .desc { color:#888; font-size:.78rem; line-height:1.4; }
+  .split { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .note { color:#666; font-size:.78rem; margin-top:6px; }
+  .status { color:#ff9f0a; font-size:.85rem; }
 </style>
 </head>
 <body>
-<h1>&gt; project-trade</h1>
 
-<div class="grid">
-  <div>
-    <h2>Quote</h2>
-    <div class="row">
-      <input id="quoteSymbol" placeholder="AAPL" value="AAPL">
-      <button onclick="loadQuote()">Get</button>
+<div id="home">
+  <h1>&gt; project-trade</h1>
+  <div class="subtitle">Bloomberg-terminal-style toolkit — pick a module. Nothing loads until you do.</div>
+  <div class="card-grid">
+    <div class="card" onclick="showSection('quote')">
+      <div class="icon">💰</div><div class="title">Stock Quote</div>
+      <div class="desc">Live price, change, volume, market cap for any ticker</div>
     </div>
-    <table id="quoteTable"></table>
-
-    <h2>DCF Valuation</h2>
-    <div class="row">
-      <input id="dcfSymbol" placeholder="AAPL" value="AAPL">
-      <button onclick="loadDCF()">Run DCF</button>
+    <div class="card" onclick="showSection('dcf')">
+      <div class="icon">📈</div><div class="title">DCF Valuation</div>
+      <div class="desc">Discounted cash flow model, auto-seeded from fundamentals</div>
     </div>
-    <table id="dcfTable"></table>
-
-    <h2>Portfolio</h2>
-    <div class="row">
-      <input id="pfSymbol" placeholder="symbol" style="width:80px">
-      <input id="pfQty" placeholder="qty" type="number" style="width:80px">
-      <button onclick="portfolioBuy()">Buy</button>
-      <button onclick="portfolioSell()">Sell</button>
-      <button onclick="loadPortfolio()">Refresh</button>
+    <div class="card" onclick="showSection('movers')">
+      <div class="icon">📉</div><div class="title">Market Movers</div>
+      <div class="desc">Top gainers, losers, most active</div>
     </div>
-    <table id="portfolioTable"></table>
-    <div id="portfolioSummary" style="margin-top:6px;"></div>
-  </div>
-
-  <div>
-    <h2>Market Movers</h2>
-    <div class="row">
-      <select id="moverCategory" onchange="loadMovers()">
-        <option value="gainers">Gainers</option>
-        <option value="losers">Losers</option>
-        <option value="active">Most Active</option>
-      </select>
+    <div class="card" onclick="showSection('news')">
+      <div class="icon">📰</div><div class="title">News</div>
+      <div class="desc">Yahoo Finance ticker news + free Google News RSS</div>
     </div>
-    <table id="moversTable"></table>
-
-    <h2>News</h2>
-    <div class="row">
-      <input id="newsSymbol" placeholder="AAPL" value="AAPL">
-      <button onclick="loadNews()">Get</button>
+    <div class="card" onclick="showSection('nifty')">
+      <div class="icon">🇮🇳</div><div class="title">Nifty 50</div>
+      <div class="desc">Pick a Nifty 50 constituent — quote, DCF, or news</div>
     </div>
-    <div id="newsList"></div>
+    <div class="card" onclick="showSection('sensex')">
+      <div class="icon">🇮🇳</div><div class="title">Sensex 30</div>
+      <div class="desc">Pick a Sensex constituent — quote, DCF, or news</div>
+    </div>
+    <div class="card" onclick="showSection('portfolio')">
+      <div class="icon">💼</div><div class="title">Portfolio</div>
+      <div class="desc">Paper-trade: buy, sell, track P&amp;L and weights</div>
+    </div>
+    <div class="card" onclick="showSection('analyzer')">
+      <div class="icon">📄</div><div class="title">Financial Statement Analyzer</div>
+      <div class="desc">Upload an annual report PDF — audit flags, IFRS16, RPT screen</div>
+    </div>
   </div>
 </div>
 
-<h2>Financial Statement Analyzer</h2>
-<div class="row">
-  <input type="file" id="analyzerFile" accept="application/pdf">
-  <button onclick="runAnalyzer()">Analyze</button>
-  <span id="analyzerStatus" style="color:#888;"></span>
+<div id="section-quote" class="hidden">
+  <span class="back" onclick="showHome()">&larr; Back</span>
+  <h2>Stock Quote</h2>
+  <div class="row">
+    <input id="quoteSymbol" placeholder="AAPL" value="AAPL">
+    <button onclick="loadQuote()">Get</button>
+  </div>
+  <table id="quoteTable"></table>
 </div>
-<div id="analyzerResults"></div>
+
+<div id="section-dcf" class="hidden">
+  <span class="back" onclick="showHome()">&larr; Back</span>
+  <h2>DCF Valuation</h2>
+  <div class="row">
+    <input id="dcfSymbol" placeholder="AAPL" value="AAPL">
+    <button onclick="loadDCF()">Run DCF</button>
+  </div>
+  <table id="dcfTable"></table>
+</div>
+
+<div id="section-movers" class="hidden">
+  <span class="back" onclick="showHome()">&larr; Back</span>
+  <h2>Market Movers</h2>
+  <div class="row">
+    <select id="moverCategory">
+      <option value="gainers">Gainers</option>
+      <option value="losers">Losers</option>
+      <option value="active">Most Active</option>
+    </select>
+    <button onclick="loadMovers()">Get</button>
+  </div>
+  <table id="moversTable"></table>
+</div>
+
+<div id="section-news" class="hidden">
+  <span class="back" onclick="showHome()">&larr; Back</span>
+  <h2>News</h2>
+  <div class="row">
+    <input id="newsSymbol" placeholder="AAPL" value="AAPL">
+    <button onclick="loadNews()">Get</button>
+  </div>
+  <div class="split">
+    <div>
+      <h2>Yahoo Finance</h2>
+      <div id="newsListYahoo"></div>
+    </div>
+    <div>
+      <h2>Google News (RSS)</h2>
+      <div id="newsListGoogle"></div>
+    </div>
+  </div>
+</div>
+
+<div id="section-nifty" class="hidden">
+  <span class="back" onclick="showHome()">&larr; Back</span>
+  <h2>Nifty 50</h2>
+  <div id="niftyPicker" class="row"><span class="status">loading constituents...</span></div>
+  <div id="niftyActions"></div>
+  <div id="niftyResults"></div>
+</div>
+
+<div id="section-sensex" class="hidden">
+  <span class="back" onclick="showHome()">&larr; Back</span>
+  <h2>Sensex 30</h2>
+  <div id="sensexPicker" class="row"><span class="status">loading constituents...</span></div>
+  <div id="sensexActions"></div>
+  <div id="sensexResults"></div>
+</div>
+
+<div id="section-portfolio" class="hidden">
+  <span class="back" onclick="showHome()">&larr; Back</span>
+  <h2>Portfolio</h2>
+  <div class="row">
+    <input id="pfSymbol" placeholder="symbol" style="width:90px">
+    <input id="pfQty" placeholder="qty" type="number" style="width:90px">
+    <button onclick="portfolioBuy()">Buy</button>
+    <button onclick="portfolioSell()">Sell</button>
+    <button onclick="loadPortfolio()">Refresh</button>
+  </div>
+  <table id="portfolioTable"></table>
+  <div id="portfolioSummary" style="margin-top:8px;"></div>
+</div>
+
+<div id="section-analyzer" class="hidden">
+  <span class="back" onclick="showHome()">&larr; Back</span>
+  <h2>Financial Statement Analyzer</h2>
+  <div class="row">
+    <input type="file" id="analyzerFile" accept="application/pdf">
+    <button onclick="runAnalyzer()">Analyze</button>
+    <span id="analyzerStatus" class="status"></span>
+  </div>
+  <div id="analyzerResults"></div>
+</div>
 
 <script>
 const pct = (v) => v == null ? "-" : (v >= 0 ? "up" : "down");
 const fmt = (v, d=2) => v == null ? "-" : Number(v).toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d});
+
+function showSection(name) {
+  document.getElementById('home').classList.add('hidden');
+  document.querySelectorAll('[id^="section-"]').forEach(el => el.classList.add('hidden'));
+  document.getElementById('section-' + name).classList.remove('hidden');
+  if (name === 'nifty' && !window._niftyLoaded) { window._niftyLoaded = true; loadIndex('nifty', '/api/indices/nifty50'); }
+  if (name === 'sensex' && !window._sensexLoaded) { window._sensexLoaded = true; loadIndex('sensex', '/api/indices/sensex30'); }
+}
+
+function showHome() {
+  document.querySelectorAll('[id^="section-"]').forEach(el => el.classList.add('hidden'));
+  document.getElementById('home').classList.remove('hidden');
+}
 
 async function loadQuote() {
   const sym = document.getElementById('quoteSymbol').value;
@@ -115,12 +216,19 @@ async function loadMovers() {
   document.getElementById('moversTable').innerHTML = html;
 }
 
+function renderNewsList(elId, items) {
+  document.getElementById(elId).innerHTML = items.map(it =>
+    `<div style="margin-bottom:8px;"><a href="${it.link}" target="_blank" style="color:#8ab4f8;">${it.title}</a><br><small style="color:#666;">${it.publisher || it.source || ''} ${it.published}</small></div>`
+  ).join("") || '<div class="note">no results</div>';
+}
+
 async function loadNews() {
   const sym = document.getElementById('newsSymbol').value;
-  const r = await fetch(`/api/news/${sym}`); const items = await r.json();
-  document.getElementById('newsList').innerHTML = items.map(it =>
-    `<div style="margin-bottom:6px;"><a href="${it.link}" target="_blank" style="color:#8ab4f8;">${it.title}</a><br><small style="color:#666;">${it.publisher} ${it.published}</small></div>`
-  ).join("");
+  const [yr, gr] = await Promise.all([
+    fetch(`/api/news/${sym}`), fetch(`/api/googlenews/${encodeURIComponent(sym)}`)
+  ]);
+  renderNewsList('newsListYahoo', await yr.json());
+  renderNewsList('newsListGoogle', await gr.json());
 }
 
 async function loadPortfolio() {
@@ -148,6 +256,55 @@ async function portfolioSell() {
   loadPortfolio();
 }
 
+async function loadIndex(prefix, url) {
+  const r = await fetch(url);
+  const rows = await r.json();
+  const picker = document.getElementById(prefix + 'Picker');
+  const options = rows.map(s => `<option value="${s.yahoo}" data-name="${s.name}">${s.symbol} — ${s.name}</option>`).join('');
+  picker.innerHTML = `<select id="${prefix}Select">${options}</select>`;
+  document.getElementById(prefix + 'Actions').innerHTML = `
+    <div class="row">
+      <button onclick="indexAction('${prefix}','quote')">Quote</button>
+      <button onclick="indexAction('${prefix}','dcf')">DCF</button>
+      <button onclick="indexAction('${prefix}','news')">News</button>
+    </div>`;
+}
+
+async function indexAction(prefix, action) {
+  const select = document.getElementById(prefix + 'Select');
+  const symbol = select.value;
+  const name = select.selectedOptions[0].dataset.name;
+  const results = document.getElementById(prefix + 'Results');
+  results.innerHTML = '<span class="status">loading...</span>';
+
+  if (action === 'quote') {
+    const r = await fetch(`/api/quote/${symbol}`); const q = await r.json();
+    results.innerHTML = `<table>
+      <tr><th>${q.name}</th><th>${q.symbol}</th></tr>
+      <tr><td>Price</td><td>${fmt(q.price)}</td></tr>
+      <tr><td>Change</td><td class="${pct(q.change)}">${fmt(q.change)} (${fmt(q.change_pct)}%)</td></tr>
+      <tr><td>Volume</td><td>${fmt(q.volume,0)}</td></tr></table>`;
+  } else if (action === 'dcf') {
+    const r = await fetch(`/api/dcf/${symbol}`); const d = await r.json();
+    results.innerHTML = `<table>
+      <tr><th>${d.symbol}</th><th></th></tr>
+      <tr><td>Enterprise Value</td><td>${fmt(d.enterprise_value,0)}</td></tr>
+      <tr><td>Equity Value</td><td>${fmt(d.equity_value,0)}</td></tr>
+      <tr><td>Implied Share Price</td><td>${fmt(d.implied_share_price)}</td></tr>
+      <tr><td>Current Price</td><td>${fmt(d.seed.current_price)}</td></tr></table>`;
+  } else if (action === 'news') {
+    const [yr, gr] = await Promise.all([
+      fetch(`/api/news/${symbol}`), fetch(`/api/googlenews/${encodeURIComponent(name)}`)
+    ]);
+    const yItems = await yr.json(), gItems = await gr.json();
+    results.innerHTML = `<div class="split">
+      <div><h2>Yahoo Finance</h2><div id="${prefix}NewsY"></div></div>
+      <div><h2>Google News</h2><div id="${prefix}NewsG"></div></div></div>`;
+    renderNewsList(prefix + 'NewsY', yItems);
+    renderNewsList(prefix + 'NewsG', gItems);
+  }
+}
+
 async function runAnalyzer() {
   const fileInput = document.getElementById('analyzerFile');
   if (!fileInput.files.length) { alert('choose a PDF first'); return; }
@@ -172,7 +329,7 @@ async function runAnalyzer() {
 
 function renderAnalyzerResults(d) {
   const el = document.getElementById('analyzerResults');
-  let html = '<div class="grid">';
+  let html = '<div class="split">';
 
   html += '<div><h2>Audit Report</h2>';
   html += `<div>Key Audit Matters: ${d.audit.key_audit_matters.length} &nbsp; Qualification flags: ${d.audit.qualification_flags.length}</div>`;
@@ -193,7 +350,7 @@ function renderAnalyzerResults(d) {
   }
   html += '</div></div>';
 
-  html += '<div class="grid">';
+  html += '<div class="split">';
   html += '<div><h2>Revenue Quality</h2>';
   html += `<div>Customer concentration mentions: ${d.revenue_quality.customer_concentration.length}</div>`;
   html += `<div>Constant-currency mentions: ${d.revenue_quality.constant_currency_mentions.length}</div>`;
@@ -210,7 +367,7 @@ function renderAnalyzerResults(d) {
   </table>`;
   html += '</div></div>';
 
-  html += '<div class="grid">';
+  html += '<div class="split">';
   html += '<div><h2>Contingent Liabilities</h2>';
   const cl = d.contingent_liabilities;
   html += `<div>Total extracted: ${fmt(cl.total_contingent_liabilities)}</div>`;
@@ -232,8 +389,6 @@ function renderAnalyzerResults(d) {
 
   el.innerHTML = html;
 }
-
-loadQuote(); loadMovers(); loadNews(); loadPortfolio();
 </script>
 </body>
 </html>

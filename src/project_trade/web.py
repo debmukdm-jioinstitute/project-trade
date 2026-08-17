@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import HTMLResponse
 
 from project_trade.core import dcf as dcf_core
-from project_trade.core import market, news as news_core, portfolio as portfolio_core
+from project_trade.core import google_news, indices, market, news as news_core, portfolio as portfolio_core
 from project_trade.core.statement_analyzer import report as statement_report
 
 BASE_DIR = Path(__file__).parent
@@ -38,6 +38,21 @@ def api_movers(category: str):
 @app.get("/api/news/{symbol}")
 def api_news(symbol: str, count: int = 8):
     return news_core.get_news(symbol, count)
+
+
+@app.get("/api/googlenews/{query}")
+def api_google_news(query: str, count: int = 8):
+    return google_news.get_google_news(query, count)
+
+
+@app.get("/api/indices/nifty50")
+def api_nifty50():
+    return [{"symbol": s, "name": n, "yahoo": indices.yahoo_symbol(s)} for s, n in indices.NIFTY50]
+
+
+@app.get("/api/indices/sensex30")
+def api_sensex30():
+    return [{"symbol": s, "name": n, "yahoo": indices.yahoo_symbol(s)} for s, n in indices.SENSEX30]
 
 
 @app.get("/api/dcf/{symbol}")
