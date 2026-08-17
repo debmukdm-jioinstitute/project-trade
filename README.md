@@ -49,6 +49,34 @@ Both front ends share the same core logic in `src/project_trade/core/`
 (`market.py`, `dcf.py`, `news.py`, `portfolio.py`) — anything added there is
 instantly available from both the CLI and the web dashboard.
 
+## Command bar (web) — Bloomberg-style function codes
+
+The web dashboard's top-bar search recognizes Bloomberg-terminal-style
+function codes — type a code alone, or `TICKER CODE` / `CODE TICKER`
+(e.g. `AAPL DES`, `RV TCS`) to jump straight to that function loaded for
+that security. Press Enter or click a dropdown result.
+
+**Equity Market Navigation**
+- `WEI` — world equity indices by region (Americas / Europe / Asia-Pacific)
+- `MOV` — index constituent movers, customizable time range (1d–1y)
+- `DES` — company snapshot: overview, key stats, news, sub-tabs
+- `GP` — multi-security price chart, SMA 20/50/200, Fibonacci retracement,
+  drawdown, correlation matrix, click-a-date for news
+- `TECH` — formulas/explanations for the indicators actually computed here
+
+**Fundamental & Estimate Analysis**
+- `FA` — income statement / balance sheet / cash flow, quarterly or annual,
+  plus a custom KPI/margin tab
+- `EE` / `EEO` — Yahoo-aggregated consensus EPS and revenue estimates
+- `ANR` — analyst buy/sell recommendation distribution + 12-month price targets
+- `RV` — relative valuation, customizable peer comp set
+
+`EEB` (per-broker estimate breakdown) is intentionally shown as unavailable
+rather than faked — that level of detail is institutional data exclusive to
+paid terminals (Bloomberg, Refinitiv, Capital IQ); no free API provides it.
+Likewise, GP's "click a date for news" shows raw headlines only — there's no
+LLM wired into this app, so no AI summary is offered.
+
 ## Financial Statement Analyzer
 
 Text-mines an annual report PDF for forensic-accounting-style red flags:

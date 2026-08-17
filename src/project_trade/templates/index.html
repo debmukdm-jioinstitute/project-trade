@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>project-trade</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -105,6 +106,30 @@
   .function-bar .fkey { cursor:pointer; }
   .function-bar .fkey:hover { color:#ff9f0a; }
   .dot { width:7px; height:7px; border-radius:50%; background:#3ddc84; display:inline-block; }
+
+  /* ── Command bar codes ── */
+  .cmd-group-label { padding:6px 12px 4px; color:#555; font-size:.68rem; letter-spacing:.08em; background:#0f1318; }
+  .code-item { display:flex; gap:10px; align-items:baseline; }
+  .code-badge { color:#0b0e11; background:#ff9f0a; font-weight:bold; font-size:.72rem; padding:1px 6px; border-radius:3px; flex-shrink:0; min-width:34px; text-align:center; }
+  .code-item .code-name { font-weight:bold; color:#e6e6e6; }
+  .code-item .code-desc { color:#888; font-size:.72rem; display:block; margin-top:1px; }
+
+  .tabs { display:flex; gap:4px; border-bottom:1px solid #22272e; margin:16px 0 0; flex-wrap:wrap; }
+  .tab { padding:8px 14px; cursor:pointer; color:#888; font-size:.82rem; border-bottom:2px solid transparent; }
+  .tab:hover { color:#ccc; }
+  .tab.active { color:#ff9f0a; border-bottom-color:#ff9f0a; }
+  .tab-panel { padding-top:14px; }
+  .unavailable-box { background:#1a1512; border:1px solid #3a2a1a; border-radius:6px; padding:14px 16px; color:#c9a876; font-size:.82rem; line-height:1.5; }
+  .chart-wrap { background:#12161b; border:1px solid #22272e; border-radius:8px; padding:14px; margin-top:12px; }
+  .rec-bar-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; font-size:.78rem; }
+  .rec-bar-label { width:90px; flex-shrink:0; color:#aaa; }
+  .rec-bar-track { flex:1; height:14px; background:#1c2026; border-radius:3px; overflow:hidden; display:flex; }
+  .rec-bar-val { width:36px; text-align:right; color:#888; }
+  .region-block { margin-bottom:18px; }
+  .region-title { color:#8ab4f8; font-size:.82rem; margin-bottom:6px; font-weight:bold; }
+  .tag-chip { display:inline-flex; align-items:center; gap:6px; background:#1c2430; border:1px solid #2a2f36; border-radius:14px; padding:4px 10px; font-size:.78rem; margin:2px 4px 2px 0; }
+  .tag-chip .x { cursor:pointer; color:#888; }
+  .tag-chip .x:hover { color:#ff5c5c; }
 </style>
 </head>
 <body>
@@ -335,6 +360,146 @@
         <div id="settingsStatus" class="note"></div>
       </div>
 
+      <div id="section-wei" class="hidden">
+        <span class="back" onclick="showSection('home')">&larr; Back</span>
+        <h2>WEI — World Equity Indices</h2>
+        <div id="weiContent"><span class="status">loading global indices...</span></div>
+      </div>
+
+      <div id="section-mov" class="hidden">
+        <span class="back" onclick="showSection('home')">&larr; Back</span>
+        <h2>MOV — Index Movers</h2>
+        <div class="row">
+          <select id="movIndex">
+            <option value="nifty50">Nifty 50</option>
+            <option value="sensex30">Sensex 30</option>
+          </select>
+          <select id="movRange">
+            <option value="1d">1 Day</option>
+            <option value="1wk">1 Week</option>
+            <option value="1mo">1 Month</option>
+            <option value="3mo">3 Months</option>
+            <option value="6mo">6 Months</option>
+            <option value="1y">1 Year</option>
+          </select>
+          <button onclick="loadMOV()">Get</button>
+        </div>
+        <div id="movContent"></div>
+      </div>
+
+      <div id="section-des" class="hidden">
+        <span class="back" onclick="showSection('home')">&larr; Back</span>
+        <h2>DES — Description</h2>
+        <div class="row">
+          <div class="search-box">
+            <input id="desSearchInput" placeholder="Search any stock — Indian or US..." autocomplete="off" style="width:380px">
+            <div id="desSearchResults" class="search-dropdown hidden"></div>
+          </div>
+        </div>
+        <div id="desContent"></div>
+      </div>
+
+      <div id="section-gp" class="hidden">
+        <span class="back" onclick="showSection('home')">&larr; Back</span>
+        <h2>GP — Price Chart</h2>
+        <div class="row">
+          <div class="search-box">
+            <input id="gpSearchInput" placeholder="Add a security — Indian or US..." autocomplete="off" style="width:300px">
+            <div id="gpSearchResults" class="search-dropdown hidden"></div>
+          </div>
+          <select id="gpPeriod">
+            <option value="1mo">1M</option>
+            <option value="3mo">3M</option>
+            <option value="6mo" selected>6M</option>
+            <option value="1y">1Y</option>
+            <option value="2y">2Y</option>
+            <option value="5y">5Y</option>
+          </select>
+          <button onclick="runGP()">Update</button>
+        </div>
+        <div id="gpSymbolChips" class="row"></div>
+        <div class="row">
+          <label><input type="checkbox" id="gpSMA20" checked onchange="renderGPChart()"> SMA 20</label>
+          <label><input type="checkbox" id="gpSMA50" onchange="renderGPChart()"> SMA 50</label>
+          <label><input type="checkbox" id="gpSMA200" onchange="renderGPChart()"> SMA 200</label>
+          <label><input type="checkbox" id="gpDrawdown" onchange="renderGPChart()"> Drawdown</label>
+        </div>
+        <div class="chart-wrap"><canvas id="gpCanvas" height="90"></canvas></div>
+        <div id="gpFibonacci"></div>
+        <div id="gpCorrelation"></div>
+        <div class="note">Click any point on the chart to pull recent news for that security around that date. No AI summarization is wired into this app — this shows raw headlines only, not a generated summary.</div>
+        <div id="gpNews"></div>
+      </div>
+
+      <div id="section-tech" class="hidden">
+        <span class="back" onclick="showSection('home')">&larr; Back</span>
+        <h2>TECH — Technical Study Browser</h2>
+        <div id="techContent"></div>
+      </div>
+
+      <div id="section-fa" class="hidden">
+        <span class="back" onclick="showSection('home')">&larr; Back</span>
+        <h2>FA — Financial Analysis</h2>
+        <div class="row">
+          <div class="search-box">
+            <input id="faSearchInput" placeholder="Search any stock — Indian or US..." autocomplete="off" style="width:380px">
+            <div id="faSearchResults" class="search-dropdown hidden"></div>
+          </div>
+          <select id="faPeriodType" onchange="runFASelected()">
+            <option value="annual">Annual</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+        </div>
+        <div class="tabs">
+          <span class="tab active" data-tab="statements" onclick="showFATab('statements')">Statements</span>
+          <span class="tab" data-tab="custom" onclick="showFATab('custom')">Custom KPIs</span>
+        </div>
+        <div id="faStatementsPanel" class="tab-panel"></div>
+        <div id="faCustomPanel" class="tab-panel hidden"></div>
+      </div>
+
+      <div id="section-ee" class="hidden">
+        <span class="back" onclick="showSection('home')">&larr; Back</span>
+        <h2>EE — Estimates Hub</h2>
+        <div class="row">
+          <div class="search-box">
+            <input id="eeSearchInput" placeholder="Search any stock — Indian or US..." autocomplete="off" style="width:380px">
+            <div id="eeSearchResults" class="search-dropdown hidden"></div>
+          </div>
+        </div>
+        <div class="tabs">
+          <span class="tab active" data-tab="eeo" onclick="showEETab('eeo')">EEO — Overview</span>
+          <span class="tab" data-tab="eeb" onclick="showEETab('eeb')">EEB — By Broker</span>
+          <span class="tab" data-tab="anr" onclick="showEETab('anr')">ANR — Recommendations</span>
+        </div>
+        <div id="eeoPanel" class="tab-panel"></div>
+        <div id="eebPanel" class="tab-panel hidden">
+          <div class="unavailable-box">
+            <b>EEB — not available.</b><br>
+            Per-broker estimate breakdowns (e.g. individual house-by-house EPS/target price
+            entries) are institutional data — exclusive to paid terminals like Bloomberg,
+            Refinitiv, or Capital IQ. There is no free API that provides this. EEO (Overview)
+            shows the real aggregated consensus instead — that part is genuine data, just not
+            attributed to individual brokerages.
+          </div>
+        </div>
+        <div id="anrPanel" class="tab-panel hidden"></div>
+      </div>
+
+      <div id="section-rv" class="hidden">
+        <span class="back" onclick="showSection('home')">&larr; Back</span>
+        <h2>RV — Relative Valuation</h2>
+        <div class="row">
+          <div class="search-box">
+            <input id="rvSearchInput" placeholder="Add a peer — Indian or US..." autocomplete="off" style="width:320px">
+            <div id="rvSearchResults" class="search-dropdown hidden"></div>
+          </div>
+          <button onclick="runRV()">Update</button>
+        </div>
+        <div id="rvChips" class="row"></div>
+        <div id="rvContent"></div>
+      </div>
+
     </div>
   </main>
 </div>
@@ -358,7 +523,9 @@ const fmt = (v, d=2) => v == null ? "-" : Number(v).toLocaleString(undefined, {m
 const signed = (v, d=2) => v == null ? "-" : (v >= 0 ? "+" : "") + fmt(v, d);
 
 const NAV_MAP = { home:"home", quote:"movers", movers:"movers", nifty:"movers", sensex:"movers",
-  dcf:"dcf", portfolio:"portfolio", news:"news", analyzer:"analyzer", settings:"settings" };
+  wei:"movers", mov:"movers", des:"movers", gp:"movers", tech:"movers",
+  dcf:"dcf", fa:"dcf", ee:"dcf", rv:"dcf",
+  portfolio:"portfolio", news:"news", analyzer:"analyzer", settings:"settings" };
 
 function showSection(name) {
   document.querySelectorAll('[id^="section-"]').forEach(el => el.classList.add('hidden'));
@@ -371,6 +538,14 @@ function showSection(name) {
   if (name === 'nifty' && !window._niftyLoaded) { window._niftyLoaded = true; loadIndex('nifty', '/api/indices/nifty50'); }
   if (name === 'sensex' && !window._sensexLoaded) { window._sensexLoaded = true; loadIndex('sensex', '/api/indices/sensex30'); }
   if (name === 'dcf') { initDCFSearch(); }
+  if (name === 'wei' && !window._weiLoaded) { window._weiLoaded = true; loadWEI(); }
+  if (name === 'mov' && !window._movLoaded) { window._movLoaded = true; loadMOV(); }
+  if (name === 'des') { initTickerSearch('des', runDES); }
+  if (name === 'gp') { initTickerSearch('gp', (sym) => addGPSymbol(sym)); }
+  if (name === 'tech' && !window._techLoaded) { window._techLoaded = true; renderTECH(); }
+  if (name === 'fa') { initTickerSearch('fa', runFAFromSearch); }
+  if (name === 'ee') { initTickerSearch('ee', runEESearch); }
+  if (name === 'rv') { initTickerSearch('rv', (sym) => addRVSymbol(sym)); }
 }
 
 /* ── activity log (localStorage) ── */
@@ -534,6 +709,53 @@ function runDCFSelected() {
   const symbol = _dcfSelectedSymbol || input.value.trim().split(' ')[0];
   if (!symbol) return;
   runDCFForSymbol(symbol);
+}
+
+/* Generic reusable ticker-search-with-dropdown, used by DES/GP/FA/EE/RV. Each
+   section has its own {prefix}SearchInput / {prefix}SearchResults pair. */
+const _tickerSearchInit = {};
+function initTickerSearch(prefix, onPick) {
+  if (_tickerSearchInit[prefix]) return;
+  _tickerSearchInit[prefix] = true;
+  const input = document.getElementById(prefix + 'SearchInput');
+  const results = document.getElementById(prefix + 'SearchResults');
+  if (!input || !results) return;
+  let timer;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { results.classList.add('hidden'); results.innerHTML = ''; return; }
+    timer = setTimeout(async () => {
+      const r = await fetch(`/api/search/${encodeURIComponent(q)}`);
+      const items = await r.json();
+      if (!items.length) { results.classList.add('hidden'); results.innerHTML = ''; return; }
+      results.innerHTML = items.map(it =>
+        `<div class="search-item" data-symbol="${it.symbol}" data-name="${(it.name||'').replace(/"/g,'&quot;')}">
+           <span class="sym">${it.symbol}</span> ${it.name || ''}
+           <span class="exch">${it.exchange || ''}</span>
+         </div>`
+      ).join('');
+      results.classList.remove('hidden');
+      results.querySelectorAll('.search-item').forEach(el => {
+        el.addEventListener('click', () => {
+          results.classList.add('hidden');
+          input.value = `${el.dataset.symbol} — ${el.dataset.name}`;
+          onPick(el.dataset.symbol, el.dataset.name);
+        });
+      });
+    }, 300);
+  });
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !results.contains(e.target)) results.classList.add('hidden');
+  });
+}
+
+async function resolveSymbol(query) {
+  const clean = query.trim();
+  if (/^[A-Za-z0-9.&-]+$/.test(clean)) return clean.toUpperCase();
+  const r = await fetch(`/api/search/${encodeURIComponent(clean)}`);
+  const items = await r.json();
+  return items.length ? items[0].symbol : clean.toUpperCase();
 }
 
 async function loadMovers() {
@@ -876,6 +1098,57 @@ const MODULES = [
   { key: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
+/* Bloomberg-style function codes. needsTicker: whether "CODE TICKER" or
+   "TICKER CODE" typed together should auto-load a security. */
+const FUNCTION_CODES = [
+  { code: 'WEI', name: 'World Equity Indices', desc: 'View world equity indices by region or globally', group: 'Equity Market Navigation', section: 'wei', needsTicker: false },
+  { code: 'MOV', name: 'Index Movers', desc: 'Drill into index members — top/bottom performers, customizable time range', group: 'Equity Market Navigation', section: 'mov', needsTicker: false },
+  { code: 'DES', name: 'Description', desc: 'Company snapshot — corporate info, key stats, sub-tabs', group: 'Equity Market Navigation', section: 'des', needsTicker: true },
+  { code: 'GP', name: 'Price Graph', desc: 'Price chart, multi-security, technical overlays, news-by-date', group: 'Equity Market Navigation', section: 'gp', needsTicker: true },
+  { code: 'TECH', name: 'Technical Studies', desc: 'Technical study browser — formulas and explanations', group: 'Equity Market Navigation', section: 'tech', needsTicker: false },
+  { code: 'FA', name: 'Financial Analysis', desc: 'Income statement, balance sheet, cash flow — quarterly/annual', group: 'Fundamental & Estimate Analysis', section: 'fa', needsTicker: true },
+  { code: 'EE', name: 'Estimates Hub', desc: 'Estimate function hub — EEO, EEB, ANR', group: 'Fundamental & Estimate Analysis', section: 'ee', needsTicker: true },
+  { code: 'EEO', name: 'Estimates Overview', desc: 'Company consensus overview — EPS, revenue estimates', group: 'Fundamental & Estimate Analysis', section: 'ee', tab: 'eeo', needsTicker: true },
+  { code: 'EEB', name: 'Estimates by Broker', desc: 'Breakdown by individual broking house', group: 'Fundamental & Estimate Analysis', section: 'ee', tab: 'eeb', needsTicker: false },
+  { code: 'ANR', name: 'Analyst Recommendations', desc: 'Buy/sell recommendations with 12-month target prices', group: 'Fundamental & Estimate Analysis', section: 'ee', tab: 'anr', needsTicker: true },
+  { code: 'RV', name: 'Relative Valuation', desc: 'Peer group comparison with a customizable comp set', group: 'Fundamental & Estimate Analysis', section: 'rv', needsTicker: true },
+];
+const CODE_GROUPS = ['Equity Market Navigation', 'Fundamental & Estimate Analysis'];
+
+async function goToCode(code, tickerQuery) {
+  const fn = FUNCTION_CODES.find(f => f.code === code);
+  if (!fn) return;
+  showSection(fn.section);
+  if (fn.tab) showEETab(fn.tab);
+  if (fn.needsTicker && tickerQuery) {
+    const symbol = await resolveSymbol(tickerQuery);
+    if (fn.section === 'des') runDES(symbol);
+    else if (fn.section === 'gp') addGPSymbol(symbol);
+    else if (fn.section === 'fa') runFAForSymbol(symbol);
+    else if (fn.section === 'ee' && fn.tab === 'eeo') runEEOForSymbol(symbol);
+    else if (fn.section === 'ee' && fn.tab === 'anr') runANRForSymbol(symbol);
+    else if (fn.section === 'ee') runEESearch(symbol);
+    else if (fn.section === 'rv') addRVSymbol(symbol);
+  }
+}
+
+function parseCommand(raw) {
+  const tokens = raw.trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return null;
+  if (tokens.length === 1) {
+    const code = tokens[0].toUpperCase();
+    const match = FUNCTION_CODES.find(f => f.code === code);
+    return match ? { code: match.code, ticker: null } : null;
+  }
+  const first = tokens[0].toUpperCase();
+  const last = tokens[tokens.length - 1].toUpperCase();
+  const lastMatch = FUNCTION_CODES.find(f => f.code === last);
+  if (lastMatch) return { code: lastMatch.code, ticker: tokens.slice(0, -1).join(' ') };
+  const firstMatch = FUNCTION_CODES.find(f => f.code === first);
+  if (firstMatch) return { code: firstMatch.code, ticker: tokens.slice(1).join(' ') };
+  return null;
+}
+
 function initCommandSearch() {
   const input = document.getElementById('commandSearch');
   const results = document.getElementById('commandResults');
@@ -885,8 +1158,12 @@ function initCommandSearch() {
     results.querySelectorAll('.search-item').forEach(el => {
       el.addEventListener('click', () => {
         results.classList.add('hidden');
+        const query = input.value;
         input.value = '';
-        if (el.dataset.type === 'module') {
+        if (el.dataset.type === 'code') {
+          const parsed = parseCommand(query) || { code: el.dataset.key, ticker: null };
+          goToCode(parsed.code || el.dataset.key, parsed.ticker);
+        } else if (el.dataset.type === 'module') {
           showSection(el.dataset.key);
         } else {
           showSection('quote');
@@ -901,25 +1178,59 @@ function initCommandSearch() {
     clearTimeout(timer);
     const q = input.value.trim();
     if (!q) { results.classList.add('hidden'); return; }
+    const qUpper = q.toUpperCase();
+
+    let html = '';
+    for (const group of CODE_GROUPS) {
+      const codeMatches = FUNCTION_CODES.filter(f => f.group === group && f.code.startsWith(qUpper.split(' ')[0]));
+      if (!codeMatches.length) continue;
+      html += `<div class="cmd-group-label">${group}</div>`;
+      html += codeMatches.map(f =>
+        `<div class="search-item code-item" data-type="code" data-key="${f.code}">
+           <span class="code-badge">${f.code}</span>
+           <span><span class="code-name">${f.name}</span><span class="code-desc">${f.desc}</span></span>
+         </div>`
+      ).join('');
+    }
+
     const modMatches = MODULES.filter(m => m.label.toLowerCase().includes(q.toLowerCase()));
-    let html = modMatches.map(m =>
-      `<div class="search-item" data-type="module" data-key="${m.key}"><span class="sym">${m.icon}</span> ${m.label}</div>`
-    ).join('');
+    if (modMatches.length) {
+      html += `<div class="cmd-group-label">Modules</div>`;
+      html += modMatches.map(m =>
+        `<div class="search-item" data-type="module" data-key="${m.key}"><span class="sym">${m.icon}</span> ${m.label}</div>`
+      ).join('');
+    }
+
     results.innerHTML = html;
-    results.classList.remove('hidden');
+    results.classList.toggle('hidden', !html);
     bindClicks();
 
     if (q.length >= 2) {
       timer = setTimeout(async () => {
         const r = await fetch(`/api/search/${encodeURIComponent(q)}`);
         const items = await r.json();
-        html += items.map(it =>
-          `<div class="search-item" data-type="ticker" data-symbol="${it.symbol}"><span class="sym">${it.symbol}</span> ${it.name || ''} <span class="exch">${it.exchange || ''}</span></div>`
-        ).join('');
+        if (items.length) {
+          html += `<div class="cmd-group-label">Tickers</div>`;
+          html += items.map(it =>
+            `<div class="search-item" data-type="ticker" data-symbol="${it.symbol}"><span class="sym">${it.symbol}</span> ${it.name || ''} <span class="exch">${it.exchange || ''}</span></div>`
+          ).join('');
+        }
         results.innerHTML = html;
-        results.classList.remove('hidden');
+        results.classList.toggle('hidden', !html);
         bindClicks();
       }, 300);
+    }
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const parsed = parseCommand(input.value);
+      if (parsed) {
+        results.classList.add('hidden');
+        const query = input.value;
+        input.value = '';
+        goToCode(parsed.code, parsed.ticker);
+      }
     }
   });
 
@@ -932,6 +1243,431 @@ function initCommandSearch() {
       input.focus();
     }
   });
+}
+
+/* ── WEI: World Equity Indices ── */
+async function loadWEI() {
+  const el = document.getElementById('weiContent');
+  el.innerHTML = '<span class="status">loading global indices...</span>';
+  const r = await fetch('/api/wei');
+  const data = await r.json();
+  let html = '';
+  for (const [region, rows] of Object.entries(data)) {
+    html += `<div class="region-block"><div class="region-title">${region}</div><table><tr><th>Index</th><th>Price</th><th>Chg %</th></tr>`;
+    for (const row of rows) {
+      html += `<tr><td>${row.label}</td><td>${fmt(row.price)}</td><td class="${pct(row.change_pct)}">${signed(row.change_pct)}%</td></tr>`;
+    }
+    html += `</table></div>`;
+  }
+  el.innerHTML = html;
+}
+
+/* ── MOV: Index Movers ── */
+async function loadMOV() {
+  const index = document.getElementById('movIndex').value;
+  const range = document.getElementById('movRange').value;
+  const el = document.getElementById('movContent');
+  el.innerHTML = '<span class="status">loading — scans every constituent, can take 10-20s...</span>';
+  const r = await fetch(`/api/mov/${index}?range=${range}`);
+  const data = await r.json();
+  let html = '<div class="split">';
+  html += `<div><h2>Top Performers (${data.range})</h2><table><tr><th>Symbol</th><th>Price</th><th>Chg %</th></tr>`;
+  for (const row of data.gainers) html += `<tr><td>${row.symbol}</td><td>${fmt(row.price)}</td><td class="${pct(row.change_pct)}">${signed(row.change_pct)}%</td></tr>`;
+  html += '</table></div>';
+  html += `<div><h2>Bottom Performers (${data.range})</h2><table><tr><th>Symbol</th><th>Price</th><th>Chg %</th></tr>`;
+  for (const row of data.losers) html += `<tr><td>${row.symbol}</td><td>${fmt(row.price)}</td><td class="${pct(row.change_pct)}">${signed(row.change_pct)}%</td></tr>`;
+  html += '</table></div></div>';
+  el.innerHTML = html;
+}
+
+/* ── DES: Description ── */
+async function runDES(symbol) {
+  const el = document.getElementById('desContent');
+  el.innerHTML = '<span class="status">loading...</span>';
+  const r = await fetch(`/api/des/${symbol}`);
+  const d = await r.json();
+  window._desSymbol = d.symbol;
+  let html = `<h2>${d.name || d.symbol} (${d.symbol})</h2>`;
+  html += `<div class="tabs">
+    <span class="tab active" data-tab="overview" onclick="showDESTab('overview')">Overview</span>
+    <span class="tab" data-tab="stats" onclick="showDESTab('stats')">Key Stats</span>
+    <span class="tab" data-tab="news" onclick="showDESTab('news')">News</span>
+  </div>`;
+  html += `<div id="desOverviewPanel" class="tab-panel">
+    <table>
+      <tr><td>Sector</td><td>${d.sector || '-'}</td></tr>
+      <tr><td>Industry</td><td>${d.industry || '-'}</td></tr>
+      <tr><td>Country</td><td>${d.country || '-'}</td></tr>
+      <tr><td>Exchange</td><td>${d.exchange || '-'}</td></tr>
+      <tr><td>Employees</td><td>${d.employees != null ? fmt(d.employees,0) : '-'}</td></tr>
+      <tr><td>Website</td><td>${d.website ? `<a href="${d.website}" target="_blank" style="color:#8ab4f8;">${d.website}</a>` : '-'}</td></tr>
+    </table>
+    <p style="font-size:.82rem; color:#ccc; line-height:1.5; margin-top:12px;">${d.summary || 'No description available.'}</p>
+  </div>`;
+  html += `<div id="desStatsPanel" class="tab-panel hidden">
+    <table>
+      <tr><td>Price</td><td>${fmt(d.price)}</td></tr>
+      <tr><td>Market Cap</td><td>${fmt(d.market_cap,0)}</td></tr>
+      <tr><td>Trailing P/E</td><td>${fmt(d.trailing_pe)}</td></tr>
+      <tr><td>Forward P/E</td><td>${fmt(d.forward_pe)}</td></tr>
+      <tr><td>Price/Book</td><td>${fmt(d.price_to_book)}</td></tr>
+      <tr><td>EV/EBITDA</td><td>${fmt(d.ev_to_ebitda)}</td></tr>
+      <tr><td>Dividend Yield</td><td>${d.dividend_yield != null ? fmt(d.dividend_yield,2)+'%' : '-'}</td></tr>
+      <tr><td>Profit Margin</td><td>${d.profit_margin != null ? fmt(d.profit_margin*100,2)+'%' : '-'}</td></tr>
+      <tr><td>Beta</td><td>${fmt(d.beta)}</td></tr>
+      <tr><td>52w Range</td><td>${fmt(d.fifty_two_week_low)} – ${fmt(d.fifty_two_week_high)}</td></tr>
+      <tr><td>EPS (TTM)</td><td>${fmt(d.eps_trailing)}</td></tr>
+      <tr><td>EPS (Fwd)</td><td>${fmt(d.eps_forward)}</td></tr>
+    </table>
+  </div>`;
+  html += `<div id="desNewsPanel" class="tab-panel hidden"><div id="desNewsList"><span class="status">select this tab to load</span></div></div>`;
+  el.innerHTML = html;
+}
+function showDESTab(tab) {
+  document.querySelectorAll('#section-des .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  ['overview', 'stats', 'news'].forEach(t => {
+    document.getElementById('des' + t.charAt(0).toUpperCase() + t.slice(1) + 'Panel').classList.toggle('hidden', t !== tab);
+  });
+  if (tab === 'news' && window._desSymbol) {
+    fetch(`/api/news/${window._desSymbol}`).then(r => r.json()).then(items => renderNewsList('desNewsList', items));
+  }
+}
+
+/* ── GP: Price Chart ── */
+const GP_COLORS = ['#ff9f0a', '#3ddc84', '#8ab4f8', '#ff5c5c', '#c792ea', '#f5d76e'];
+
+function addGPSymbol(symbol) {
+  window._gpSymbols = window._gpSymbols || [];
+  if (window._gpSymbols.includes(symbol)) return;
+  window._gpSymbols.push(symbol);
+  renderGPChips();
+  runGP();
+}
+function removeGPSymbol(symbol) {
+  window._gpSymbols = (window._gpSymbols || []).filter(s => s !== symbol);
+  renderGPChips();
+  runGP();
+}
+function renderGPChips() {
+  document.getElementById('gpSymbolChips').innerHTML =
+    (window._gpSymbols || []).map(s => `<span class="tag-chip">${s} <span class="x" onclick="removeGPSymbol('${s}')">&times;</span></span>`).join('')
+    || '<span class="note">add a security above to plot it</span>';
+}
+
+async function runGP() {
+  const symbols = window._gpSymbols || [];
+  if (!symbols.length) return;
+  const period = document.getElementById('gpPeriod').value;
+  const [priceR, techR] = await Promise.all([
+    fetch(`/api/gp/price?symbols=${symbols.join(',')}&period=${period}`),
+    fetch(`/api/gp/technicals?symbols=${symbols.join(',')}&period=${period}`),
+  ]);
+  window._gpPriceData = await priceR.json();
+  window._gpTechData = await techR.json();
+  renderGPChart();
+  renderGPFibonacci();
+  renderGPCorrelation();
+}
+
+function renderGPChart() {
+  const symbols = window._gpSymbols || [];
+  const priceData = window._gpPriceData || {};
+  const techData = window._gpTechData || {};
+  if (!symbols.length || typeof Chart === 'undefined') return;
+
+  const showSMA20 = document.getElementById('gpSMA20').checked;
+  const showSMA50 = document.getElementById('gpSMA50').checked;
+  const showSMA200 = document.getElementById('gpSMA200').checked;
+  const showDrawdown = document.getElementById('gpDrawdown').checked;
+
+  const labels = (priceData[symbols[0]] || []).map(p => p.date);
+  const datasets = [];
+  symbols.forEach((sym, i) => {
+    const color = GP_COLORS[i % GP_COLORS.length];
+    const series = priceData[sym] || [];
+    datasets.push({ label: sym, data: series.map(p => p.close), borderColor: color, pointRadius: 0, borderWidth: 1.6, yAxisID: 'y' });
+    const tech = techData[sym];
+    if (tech) {
+      if (showSMA20) datasets.push({ label: `${sym} SMA20`, data: tech.sma20, borderColor: color, borderDash: [4, 3], borderWidth: 1, pointRadius: 0, yAxisID: 'y' });
+      if (showSMA50) datasets.push({ label: `${sym} SMA50`, data: tech.sma50, borderColor: color, borderDash: [2, 2], borderWidth: 1, pointRadius: 0, yAxisID: 'y' });
+      if (showSMA200) datasets.push({ label: `${sym} SMA200`, data: tech.sma200, borderColor: color, borderDash: [1, 4], borderWidth: 1, pointRadius: 0, yAxisID: 'y' });
+      if (showDrawdown) datasets.push({ label: `${sym} Drawdown %`, data: tech.drawdown, borderColor: color, borderWidth: 1, pointRadius: 0, yAxisID: 'y1' });
+    }
+  });
+
+  const ctx = document.getElementById('gpCanvas').getContext('2d');
+  if (window._gpChart) window._gpChart.destroy();
+  window._gpChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: { position: 'left', ticks: { color: '#888' }, grid: { color: '#1c2026' } },
+        y1: { position: 'right', display: showDrawdown, ticks: { color: '#888' }, grid: { drawOnChartArea: false } },
+        x: { ticks: { color: '#666', maxTicksLimit: 10 }, grid: { color: '#1c2026' } },
+      },
+      plugins: { legend: { labels: { color: '#ccc', font: { size: 10 } } } },
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        loadGPNewsForDate(symbols[0], labels[elements[0].index]);
+      },
+    },
+  });
+}
+
+function renderGPFibonacci() {
+  const techData = window._gpTechData || {};
+  const symbols = window._gpSymbols || [];
+  let html = '<h2>Fibonacci Retracement</h2><div class="split">';
+  symbols.forEach(sym => {
+    const fib = (techData[sym] || {}).fibonacci || {};
+    html += `<div><b>${sym}</b><table>`;
+    for (const [level, price] of Object.entries(fib)) html += `<tr><td>${level}</td><td>${fmt(price)}</td></tr>`;
+    html += `</table><div class="note">Max drawdown over period: ${fmt((techData[sym] || {}).max_drawdown_pct, 2)}%</div></div>`;
+  });
+  html += '</div>';
+  document.getElementById('gpFibonacci').innerHTML = html;
+}
+
+function renderGPCorrelation() {
+  const corr = (window._gpTechData || {})._correlation || {};
+  const symbols = Object.keys(corr);
+  const el = document.getElementById('gpCorrelation');
+  if (symbols.length < 2) { el.innerHTML = ''; return; }
+  let html = '<h2>Correlation Matrix</h2><div style="overflow-x:auto;"><table><tr><th></th>';
+  symbols.forEach(s => html += `<th>${s}</th>`);
+  html += '</tr>';
+  symbols.forEach(a => {
+    html += `<tr><td><b>${a}</b></td>`;
+    symbols.forEach(b => html += `<td>${corr[a][b] != null ? fmt(corr[a][b], 3) : '-'}</td>`);
+    html += '</tr>';
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+}
+
+async function loadGPNewsForDate(symbol, date) {
+  const el = document.getElementById('gpNews');
+  el.innerHTML = `<h2>News — ${symbol} (around ${date})</h2><div id="gpNewsList"><span class="status">loading...</span></div>`;
+  const r = await fetch(`/api/news/${symbol}`);
+  renderNewsList('gpNewsList', await r.json());
+}
+
+/* ── TECH: static glossary for indicators actually used in this app ── */
+function renderTECH() {
+  document.getElementById('techContent').innerHTML = `
+    <h2>SMA — Simple Moving Average</h2>
+    <p class="note">SMA(n) = (P₁ + P₂ + ... + Pₙ) / n — average closing price over the last n periods.
+    Smooths noise to show trend direction. Used in GP as 20/50/200-day overlays.</p>
+    <h2>Fibonacci Retracement</h2>
+    <p class="note">Levels drawn between a period's high and low at 23.6%, 38.2%, 50%, 61.8%, 78.6% —
+    used as potential support/resistance. Level = High − (High − Low) × ratio. Used in GP.</p>
+    <h2>Maximum Drawdown</h2>
+    <p class="note">Drawdown(t) = Price(t) / RunningPeak(t) − 1, as %. Max Drawdown is the most negative
+    value over the period — the largest peak-to-trough decline. Used in GP.</p>
+    <h2>Correlation</h2>
+    <p class="note">Pearson correlation of daily % returns between two securities, from −1 (perfectly
+    inverse) to +1 (perfectly co-moving). Shown in GP when 2+ securities are plotted together.</p>
+    <h2>WACC / CAPM</h2>
+    <p class="note">Cost of Equity = Risk-Free Rate + Beta × Equity Risk Premium. WACC = (E/(E+D)) × Cost
+    of Equity + (D/(E+D)) × Cost of Debt × (1 − Tax Rate). Used in the DCF Valuation module.</p>
+    <div class="note" style="margin-top:16px;">This lists what's actually computed in this app — not a
+    full technical-analysis library. RSI, MACD, Bollinger Bands etc. are not implemented here.</div>
+  `;
+}
+
+/* ── FA: Financial Analysis ── */
+function runFAFromSearch(symbol) { runFAForSymbol(symbol); }
+
+async function runFAForSymbol(symbol) {
+  window._faSymbol = symbol;
+  await renderFAStatements();
+}
+
+function runFASelected() { if (window._faSymbol) renderFAStatements(); }
+
+async function renderFAStatements() {
+  const el = document.getElementById('faStatementsPanel');
+  el.innerHTML = '<span class="status">loading...</span>';
+  const quarterly = document.getElementById('faPeriodType').value === 'quarterly';
+  const r = await fetch(`/api/fa/${window._faSymbol}?quarterly=${quarterly}`);
+  const d = await r.json();
+  window._faData = d;
+
+  function section(title, rows) {
+    if (!rows.length) return `<h2>${title}</h2><div class="note">no data available</div>`;
+    const periods = Object.keys(rows[0].values);
+    let html = `<h2>${title}</h2><div style="overflow-x:auto;"><table><tr><th>Line Item</th>`;
+    periods.forEach(p => html += `<th>${p}</th>`);
+    html += '</tr>';
+    rows.forEach(row => {
+      html += `<tr><td>${row.item}</td>`;
+      periods.forEach(p => {
+        const v = row.values[p];
+        html += `<td style="cursor:help; color:#ff9f0a;" title="Source: Yahoo Finance ${d.period_type} filing data">${v != null ? fmt(v, 0) : '-'}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</table></div>';
+    return html;
+  }
+
+  el.innerHTML =
+    section('Income Statement', d.income_statement) +
+    section('Balance Sheet', d.balance_sheet) +
+    section('Cash Flow Statement', d.cashflow_statement);
+
+  renderFACustom();
+}
+
+function renderFACustom() {
+  const el = document.getElementById('faCustomPanel');
+  const d = window._faData;
+  if (!d) { el.innerHTML = '<div class="note">load a statement first</div>'; return; }
+  const k = d.kpi;
+  el.innerHTML = `<h2>Custom KPIs</h2><table>
+    <tr><td>Gross Margin</td><td>${k.gross_margin_pct != null ? fmt(k.gross_margin_pct, 2) + '%' : '-'}</td></tr>
+    <tr><td>Operating Margin</td><td>${k.operating_margin_pct != null ? fmt(k.operating_margin_pct, 2) + '%' : '-'}</td></tr>
+    <tr><td>Net Margin</td><td>${k.net_margin_pct != null ? fmt(k.net_margin_pct, 2) + '%' : '-'}</td></tr>
+    <tr><td>Return on Equity</td><td>${k.return_on_equity_pct != null ? fmt(k.return_on_equity_pct, 2) + '%' : '-'}</td></tr>
+    <tr><td>Return on Assets</td><td>${k.return_on_assets_pct != null ? fmt(k.return_on_assets_pct, 2) + '%' : '-'}</td></tr>
+    <tr><td>Current Ratio</td><td>${fmt(k.current_ratio)}</td></tr>
+    <tr><td>Debt/Equity</td><td>${fmt(k.debt_to_equity)}</td></tr>
+    <tr><td>Revenue per Employee</td><td>${k.revenue_per_employee != null ? fmt(k.revenue_per_employee, 0) : '-'}</td></tr>
+  </table>
+  <div class="note">Orange cells in Statements are the raw source numbers (hover for source). A full
+  right-click YoY context menu isn't implemented — this Custom tab shows margin/return ratios instead.</div>`;
+}
+
+function showFATab(tab) {
+  document.querySelectorAll('#section-fa .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('faStatementsPanel').classList.toggle('hidden', tab !== 'statements');
+  document.getElementById('faCustomPanel').classList.toggle('hidden', tab !== 'custom');
+}
+
+/* ── EE / EEO / EEB / ANR ── */
+async function runEESearch(symbol) {
+  await runEEOForSymbol(symbol);
+}
+
+async function runEEOForSymbol(symbol) {
+  window._eeSymbol = symbol;
+  showEETab('eeo');
+  const el = document.getElementById('eeoPanel');
+  el.innerHTML = '<span class="status">loading...</span>';
+  const r = await fetch(`/api/ee/${symbol}`);
+  const d = await r.json();
+
+  function estTable(title, rows, keys) {
+    if (!rows.length) return `<h2>${title}</h2><div class="note">no estimates available</div>`;
+    let html = `<h2>${title}</h2><div style="overflow-x:auto;"><table><tr><th>Period</th>`;
+    keys.forEach(k => html += `<th>${k}</th>`);
+    html += '</tr>';
+    rows.forEach(row => {
+      html += `<tr><td>${row.period}</td>`;
+      keys.forEach(k => {
+        const v = row[k];
+        html += `<td>${typeof v === 'number' ? fmt(v, k === 'numberOfAnalysts' ? 0 : (k === 'growth' ? 1 : 2)) + (k === 'growth' ? '%' : '') : (v ?? '-')}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</table></div>';
+    return html;
+  }
+
+  el.innerHTML =
+    `<div class="note">Aggregated consensus from Yahoo Finance's analyst panel — not attributed to
+    individual brokerages (see the EEB tab for why that's not available free).</div>` +
+    estTable('EPS Estimates', d.earnings_estimate, ['avg', 'low', 'high', 'yearAgoEps', 'numberOfAnalysts', 'growth']) +
+    estTable('Revenue Estimates', d.revenue_estimate, ['avg', 'low', 'high', 'numberOfAnalysts', 'growth']);
+}
+
+async function runANRForSymbol(symbol) {
+  window._eeSymbol = symbol;
+  showEETab('anr');
+  const el = document.getElementById('anrPanel');
+  el.innerHTML = '<span class="status">loading...</span>';
+  const r = await fetch(`/api/anr/${symbol}`);
+  const d = await r.json();
+
+  const colors = { strong_buy: '#3ddc84', buy: '#7fdb60', hold: '#f5d76e', sell: '#ff9f6e', strong_sell: '#ff5c5c' };
+  const labels = { strong_buy: 'Strong Buy', buy: 'Buy', hold: 'Hold', sell: 'Sell', strong_sell: 'Strong Sell' };
+
+  let html = `<div class="note">Aggregated buy/sell distribution and price targets from Yahoo Finance's
+    analyst panel — not attributed to individual brokerages.</div><h2>Recommendation Distribution</h2>`;
+  d.recommendations.forEach(row => {
+    const total = row.strong_buy + row.buy + row.hold + row.sell + row.strong_sell || 1;
+    html += `<div class="rec-bar-row"><span class="rec-bar-label">${row.period}</span><span class="rec-bar-track">`;
+    Object.keys(colors).forEach(key => {
+      const n = row[key];
+      if (n) html += `<span style="width:${(n / total * 100).toFixed(1)}%; background:${colors[key]};" title="${labels[key]}: ${n}"></span>`;
+    });
+    html += `</span><span class="rec-bar-val">${total}</span></div>`;
+  });
+  html += '<div class="row" style="gap:14px; font-size:.75rem; margin-top:6px;">';
+  Object.keys(colors).forEach(key => {
+    html += `<span><span class="legend-dot" style="background:${colors[key]}; display:inline-block;"></span> ${labels[key]}</span>`;
+  });
+  html += '</div>';
+
+  const t = d.price_targets || {};
+  html += `<h2>12-Month Price Targets</h2><table>
+    <tr><td>Current Price</td><td>${fmt(t.current)}</td></tr>
+    <tr><td>Low Target</td><td>${fmt(t.low)}</td></tr>
+    <tr><td>Mean Target</td><td>${fmt(t.mean)}</td></tr>
+    <tr><td>Median Target</td><td>${fmt(t.median)}</td></tr>
+    <tr><td>High Target</td><td>${fmt(t.high)}</td></tr>
+  </table>`;
+  el.innerHTML = html;
+}
+
+function showEETab(tab) {
+  document.querySelectorAll('#section-ee .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('eeoPanel').classList.toggle('hidden', tab !== 'eeo');
+  document.getElementById('eebPanel').classList.toggle('hidden', tab !== 'eeb');
+  document.getElementById('anrPanel').classList.toggle('hidden', tab !== 'anr');
+}
+
+/* ── RV: Relative Valuation ── */
+function addRVSymbol(symbol) {
+  window._rvSymbols = window._rvSymbols || [];
+  if (window._rvSymbols.includes(symbol)) return;
+  window._rvSymbols.push(symbol);
+  renderRVChips();
+  runRV();
+}
+function removeRVSymbol(symbol) {
+  window._rvSymbols = (window._rvSymbols || []).filter(s => s !== symbol);
+  renderRVChips();
+  runRV();
+}
+function renderRVChips() {
+  document.getElementById('rvChips').innerHTML =
+    (window._rvSymbols || []).map(s => `<span class="tag-chip">${s} <span class="x" onclick="removeRVSymbol('${s}')">&times;</span></span>`).join('')
+    || '<span class="note">add peers above to compare</span>';
+}
+async function runRV() {
+  const symbols = window._rvSymbols || [];
+  const el = document.getElementById('rvContent');
+  if (!symbols.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<span class="status">loading...</span>';
+  const r = await fetch(`/api/rv?symbols=${symbols.join(',')}`);
+  const rows = await r.json();
+  let html = '<div style="overflow-x:auto;"><table><tr><th>Company</th><th>Mkt Cap</th><th>P/E</th><th>Fwd P/E</th><th>P/B</th><th>EV/EBITDA</th><th>Gross Mgn</th><th>Op Mgn</th><th>Net Mgn</th><th>Rev Growth</th></tr>';
+  rows.forEach(row => {
+    if (row.error) { html += `<tr><td>${row.symbol}</td><td colspan="9" class="note">unavailable</td></tr>`; return; }
+    html += `<tr><td>${row.name} (${row.symbol})</td>
+      <td>${fmt(row.market_cap, 0)}</td><td>${fmt(row.trailing_pe)}</td><td>${fmt(row.forward_pe)}</td>
+      <td>${fmt(row.price_to_book)}</td><td>${fmt(row.ev_to_ebitda)}</td>
+      <td>${row.gross_margin_pct != null ? fmt(row.gross_margin_pct, 1) + '%' : '-'}</td>
+      <td>${row.operating_margin_pct != null ? fmt(row.operating_margin_pct, 1) + '%' : '-'}</td>
+      <td>${row.net_margin_pct != null ? fmt(row.net_margin_pct, 1) + '%' : '-'}</td>
+      <td class="${row.revenue_growth_pct != null ? pct(row.revenue_growth_pct) : ''}">${row.revenue_growth_pct != null ? signed(row.revenue_growth_pct, 1) + '%' : '-'}</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
 }
 
 /* ── Boot ── */

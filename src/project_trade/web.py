@@ -10,6 +10,7 @@ from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import HTMLResponse
 
 from project_trade.core import dcf as dcf_core
+from project_trade.core import equity_research as eq
 from project_trade.core import google_news, indices, market, news as news_core, portfolio as portfolio_core
 from project_trade.core.statement_analyzer import report as statement_report
 
@@ -239,3 +240,78 @@ async def api_analyze(file: UploadFile = File(...)):
         return statement_report.analyze(tmp_path)
     finally:
         os.unlink(tmp_path)
+
+
+# ── Bloomberg-style equity research functions (WEI/MOV/DES/GP/FA/EE/ANR/RV) ──
+
+@app.get("/api/wei")
+def api_wei():
+    return eq.get_world_indices()
+
+
+@app.get("/api/mov/{index_key}")
+def api_mov(index_key: str, range: str = "1d", top_n: int = 10):
+    return eq.get_index_movers(index_key, range, top_n)
+
+
+@app.get("/api/des/{symbol}")
+def api_des(symbol: str):
+    return eq.get_company_description(symbol)
+
+
+@app.get("/api/gp/price")
+def api_gp_price(symbols: str, period: str = "1y", interval: str = "1d"):
+    """symbols is a comma-separated list, e.g. 'AAPL,MSFT'."""
+    result = {}
+    for symbol in symbols.split(","):
+        symbol = symbol.strip()
+        if symbol:
+            result[symbol] = eq.get_price_series(symbol, period, interval)
+    return result
+
+
+@app.get("/api/gp/technicals")
+def api_gp_technicals(symbols: str, period: str = "1y", interval: str = "1d"):
+    closes_by_symbol = {}
+    out = {}
+    for symbol in symbols.split(","):
+        symbol = symbol.strip()
+        if not symbol:
+            continue
+        series = eq.get_price_series(symbol, period, interval)
+        closes = [p["close"] for p in series]
+        closes_by_symbol[symbol] = closes
+        drawdowns, max_dd = eq.max_drawdown_series(closes)
+        out[symbol] = {
+            "dates": [p["date"] for p in series],
+            "sma20": eq.sma(closes, 20),
+            "sma50": eq.sma(closes, 50),
+            "sma200": eq.sma(closes, 200),
+            "drawdown": drawdowns,
+            "max_drawdown_pct": max_dd,
+            "fibonacci": eq.fibonacci_levels(closes),
+        }
+    out["_correlation"] = eq.correlation_matrix(closes_by_symbol)
+    return out
+
+
+@app.get("/api/fa/{symbol}")
+def api_fa(symbol: str, quarterly: bool = False):
+    stmts = eq.get_financial_statements(symbol, quarterly)
+    stmts["kpi"] = eq.get_kpi_ratios(symbol)
+    return stmts
+
+
+@app.get("/api/ee/{symbol}")
+def api_ee(symbol: str):
+    return eq.get_estimates(symbol)
+
+
+@app.get("/api/anr/{symbol}")
+def api_anr(symbol: str):
+    return eq.get_recommendations(symbol)
+
+
+@app.get("/api/rv")
+def api_rv(symbols: str):
+    return eq.get_relative_valuation([s.strip() for s in symbols.split(",") if s.strip()])
