@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import json
+import time
 
 import typer
 from rich.console import Console
+from rich.layout import Layout
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 
@@ -12,8 +15,17 @@ from project_trade.core import dcf as dcf_core
 from project_trade.core import market, news as news_core, portfolio as portfolio_core
 from project_trade.core.statement_analyzer import report as statement_report
 
-app = typer.Typer(help="project-trade: DCF, deal analysis, quotes, movers, news, portfolio sim — in your terminal.")
+app = typer.Typer(
+    help="project-trade: DCF, deal analysis, quotes, movers, news, portfolio sim — in your terminal.",
+    invoke_without_command=True,
+)
 console = Console()
+
+
+@app.callback()
+def main(ctx: typer.Context):
+    if ctx.invoked_subcommand is None:
+        _run_dashboard()
 
 
 def _color(value: float) -> str:
@@ -161,6 +173,76 @@ def portfolio_show():
 def portfolio_reset(cash: float = 100_000.0):
     portfolio_core.reset(cash)
     console.print(f"[yellow]Portfolio reset with {cash:,.2f} cash[/]")
+
+
+def _build_dashboard() -> Layout:
+    layout = Layout()
+    layout.split_column(
+        Layout(
+            Panel(
+                "[bold cyan]project-trade[/] — live dashboard   "
+                "[dim](Ctrl+C to exit — try `project-trade quote AAPL`, `project-trade --help`)[/]",
+            ),
+            size=3,
+        ),
+        Layout(name="body"),
+    )
+    layout["body"].split_row(Layout(name="gainers"), Layout(name="losers"), Layout(name="portfolio"))
+
+    def movers_table(title: str, rows: list[dict]) -> Table:
+        t = Table(title=title)
+        t.add_column("Sym")
+        t.add_column("Price", justify="right")
+        t.add_column("Chg %", justify="right")
+        for r in rows:
+            chg = r["change_pct"] or 0
+            t.add_row(r["symbol"], f"{(r['price'] or 0):,.2f}", f"[{_color(chg)}]{chg:+.2f}%[/]")
+        return t
+
+    try:
+        layout["gainers"].update(movers_table("Top Gainers", market.get_movers("gainers", count=8)))
+    except Exception as e:
+        layout["gainers"].update(Panel(f"[red]movers unavailable: {e}[/]"))
+
+    try:
+        layout["losers"].update(movers_table("Top Losers", market.get_movers("losers", count=8)))
+    except Exception as e:
+        layout["losers"].update(Panel(f"[red]movers unavailable: {e}[/]"))
+
+    try:
+        summary = portfolio_core.get_summary()
+        if summary["positions"]:
+            pf = Table(title=f"Portfolio (Equity {summary['total_equity']:,.0f})")
+            pf.add_column("Sym")
+            pf.add_column("Qty", justify="right")
+            pf.add_column("P&L", justify="right")
+            for p in summary["positions"][:8]:
+                pf.add_row(p["symbol"], f"{p['qty']:.2f}", f"[{_color(p['unrealized_pnl'])}]{p['unrealized_pnl']:+,.2f}[/]")
+            layout["portfolio"].update(pf)
+        else:
+            layout["portfolio"].update(
+                Panel("[dim]No positions[/]\n\nbuy: project-trade portfolio buy SYM QTY", title="Portfolio")
+            )
+    except Exception as e:
+        layout["portfolio"].update(Panel(f"[red]portfolio unavailable: {e}[/]"))
+
+    return layout
+
+
+def _run_dashboard(refresh: int = 30):
+    with Live(_build_dashboard(), console=console, screen=True, refresh_per_second=1) as live:
+        try:
+            while True:
+                time.sleep(refresh)
+                live.update(_build_dashboard())
+        except KeyboardInterrupt:
+            pass
+
+
+@app.command()
+def dashboard(refresh: int = typer.Option(30, help="Refresh interval in seconds")):
+    """Live terminal dashboard: top movers + your portfolio. This is what bare `project-trade` launches."""
+    _run_dashboard(refresh)
 
 
 @app.command()
