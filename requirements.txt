@@ -1,0 +1,9 @@
+# Vercel serverless build — web-app deps only (CLI-only deps like typer,
+# rich, questionary, textual, feedparser are omitted to keep the function
+# bundle small; local dev still uses pyproject.toml's full dependency set).
+fastapi>=0.110
+python-multipart>=0.0.9
+yfinance>=0.2.38
+requests>=2.31
+pymupdf>=1.24
+pdfplumber>=0.11

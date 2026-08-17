@@ -2,12 +2,32 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from project_trade.core.market import get_quote
 
-DATA_DIR = Path.home() / ".project_trade"
+
+def _resolve_data_dir() -> Path:
+    """Prefer ~/.project_trade for a persistent local CLI; fall back to /tmp on
+    read-only-home serverless environments (e.g. Vercel), where it's ephemeral
+    per invocation but at least writable."""
+    if override := os.environ.get("PROJECT_TRADE_DATA_DIR"):
+        return Path(override)
+    home_dir = Path.home() / ".project_trade"
+    try:
+        home_dir.mkdir(parents=True, exist_ok=True)
+        probe = home_dir / ".write_test"
+        probe.write_text("ok")
+        probe.unlink()
+        return home_dir
+    except OSError:
+        return Path(tempfile.gettempdir()) / "project_trade"
+
+
+DATA_DIR = _resolve_data_dir()
 PORTFOLIO_FILE = DATA_DIR / "portfolio.json"
 
 
