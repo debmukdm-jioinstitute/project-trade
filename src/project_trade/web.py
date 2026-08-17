@@ -61,6 +61,73 @@ def api_sensex30():
     return [{"symbol": s, "name": n, "yahoo": indices.yahoo_symbol(s)} for s, n in indices.SENSEX30]
 
 
+TICKER_STRIP = [
+    {"key": "nifty50", "symbol": "^NSEI", "label": "NIFTY 50"},
+    {"key": "sensex30", "symbol": "^BSESN", "label": "SENSEX 30"},
+    {"key": "usdinr", "symbol": "INR=X", "label": "USD/INR"},
+    # yfinance has no free MCX feed; COMEX gold futures (USD/oz) is the honest
+    # free substitute — labeled accordingly rather than mislabeled as MCX.
+    {"key": "gold", "symbol": "GC=F", "label": "GOLD (COMEX)"},
+]
+
+HEATMAP_SYMBOLS = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN"]
+
+WATCHLIST = [
+    {"key": "nifty50", "symbol": "^NSEI", "label": "NIFTY 50"},
+    {"key": "sensex30", "symbol": "^BSESN", "label": "SENSEX 30"},
+    {"key": "banknifty", "symbol": "^NSEBANK", "label": "BANK NIFTY"},
+    {"key": "reliance", "symbol": "RELIANCE.NS", "label": "RELIANCE"},
+    {"key": "tcs", "symbol": "TCS.NS", "label": "TCS"},
+]
+
+
+@app.get("/api/ticker-strip")
+def api_ticker_strip():
+    results = []
+    for item in TICKER_STRIP:
+        try:
+            q = market.get_quote(item["symbol"])
+            hist = market.get_history(item["symbol"], period="1d", interval="15m")
+            spark = [round(float(v), 4) for v in hist["Close"].dropna().tolist()] if not hist.empty else []
+        except Exception:
+            q, spark = None, []
+        results.append(
+            {
+                "key": item["key"],
+                "label": item["label"],
+                "symbol": item["symbol"],
+                "price": q.price if q else None,
+                "change_pct": q.change_pct if q else None,
+                "spark": spark,
+            }
+        )
+    return results
+
+
+@app.get("/api/heatmap")
+def api_heatmap():
+    results = []
+    for sym in HEATMAP_SYMBOLS:
+        try:
+            q = market.get_quote(indices.yahoo_symbol(sym))
+            results.append({"symbol": sym, "price": q.price, "change_pct": q.change_pct})
+        except Exception:
+            results.append({"symbol": sym, "price": None, "change_pct": None})
+    return results
+
+
+@app.get("/api/watchlist")
+def api_watchlist():
+    results = []
+    for item in WATCHLIST:
+        try:
+            q = market.get_quote(item["symbol"])
+            results.append({"key": item["key"], "label": item["label"], "price": q.price, "change_pct": q.change_pct})
+        except Exception:
+            results.append({"key": item["key"], "label": item["label"], "price": None, "change_pct": None})
+    return results
+
+
 @app.get("/api/dcf/{symbol}")
 def api_dcf(
     symbol: str,
@@ -154,6 +221,11 @@ def api_portfolio_buy(symbol: str = Form(...), qty: float = Form(...)):
 @app.post("/api/portfolio/sell")
 def api_portfolio_sell(symbol: str = Form(...), qty: float = Form(...)):
     return portfolio_core.sell(symbol, qty)
+
+
+@app.post("/api/portfolio/reset")
+def api_portfolio_reset(cash: float = Form(100_000.0)):
+    return portfolio_core.reset(cash)
 
 
 @app.post("/api/analyze")
