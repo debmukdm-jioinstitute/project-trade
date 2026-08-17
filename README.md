@@ -15,12 +15,26 @@ pip install -e .
 ## Run — Terminal
 
 ```bash
+project-trade
+```
+
+Bare invocation launches an interactive welcome menu — pick a module with the
+arrow keys (DCF, quotes, movers, news, portfolio, Nifty 50 / Sensex 30 stock
+pickers, the financial statement analyzer, or the live dashboard). It loops
+back to the menu after each action; `Exit` or `Ctrl+C` quits.
+
+Every module is also a direct command, for scripting or muscle memory:
+
+```bash
 project-trade quote AAPL
-project-trade movers gainers        # gainers | losers | active
-project-trade news AAPL
+project-trade quote RELIANCE.NS            # NSE tickers: SYMBOL.NS
+project-trade movers gainers               # gainers | losers | active
+project-trade news AAPL                    # Yahoo Finance ticker news
+project-trade googlenews "Reliance Industries"   # free Google News RSS, no API key
 project-trade dcf AAPL --growth 0.08 --years 5 --discount-rate 0.09
 project-trade portfolio buy AAPL 10
 project-trade portfolio show
+project-trade dashboard                    # live movers + portfolio, refreshing
 ```
 
 ## Run — Web

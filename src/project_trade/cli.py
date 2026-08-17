@@ -1,9 +1,18 @@
-"""project-trade CLI — Bloomberg-terminal-style toolkit for the terminal."""
+"""project-trade CLI — Bloomberg-terminal-style toolkit for the terminal.
+
+Command bodies are kept as thin wrappers around plain `_xxx()` functions with
+ordinary Python defaults. Typer's `typer.Option`/`typer.Argument` sentinels
+only resolve to real values when Typer itself parses argv — calling a
+decorated command function directly (as the interactive menu needs to) would
+otherwise hand back the unresolved sentinel object instead of the default.
+"""
 from __future__ import annotations
 
 import json
+import signal
 import time
 
+import questionary
 import typer
 from rich.console import Console
 from rich.layout import Layout
@@ -12,7 +21,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from project_trade.core import dcf as dcf_core
-from project_trade.core import market, news as news_core, portfolio as portfolio_core
+from project_trade.core import google_news, indices, market, news as news_core, portfolio as portfolio_core
 from project_trade.core.statement_analyzer import report as statement_report
 
 app = typer.Typer(
@@ -21,20 +30,32 @@ app = typer.Typer(
 )
 console = Console()
 
+MENU_STYLE = questionary.Style([
+    ("qmark", "fg:#ff9f0a bold"),
+    ("question", "bold"),
+    ("pointer", "fg:#ff9f0a bold"),
+    ("highlighted", "fg:#ff9f0a bold"),
+    ("selected", "fg:#3ddc84"),
+])
+
 
 @app.callback()
 def main(ctx: typer.Context):
     if ctx.invoked_subcommand is None:
-        _run_dashboard()
+        _main_menu()
 
 
 def _color(value: float) -> str:
     return "green" if value >= 0 else "red"
 
 
-@app.command()
-def quote(symbol: str):
-    """Live quote for a ticker."""
+def _pause():
+    questionary.text("Press Enter to return to the menu...", style=MENU_STYLE).ask()
+
+
+# ── Quote ──────────────────────────────────────────────────────────────────
+
+def _quote(symbol: str):
     q = market.get_quote(symbol)
     table = Table(title=f"{q.name} ({q.symbol})")
     table.add_column("Field")
@@ -52,8 +73,14 @@ def quote(symbol: str):
 
 
 @app.command()
-def movers(category: str = typer.Argument("gainers", help="gainers | losers | active")):
-    """Top market movers."""
+def quote(symbol: str):
+    """Live quote for a ticker."""
+    _quote(symbol)
+
+
+# ── Movers ─────────────────────────────────────────────────────────────────
+
+def _movers(category: str = "gainers"):
     rows = market.get_movers(category)
     table = Table(title=f"Top {category}")
     table.add_column("Symbol")
@@ -74,10 +101,16 @@ def movers(category: str = typer.Argument("gainers", help="gainers | losers | ac
 
 
 @app.command()
-def news(symbol: str, count: int = 8):
-    """Latest headlines for a ticker."""
+def movers(category: str = typer.Argument("gainers", help="gainers | losers | active")):
+    """Top market movers."""
+    _movers(category)
+
+
+# ── News (Yahoo ticker news + free Google News RSS) ─────────────────────────
+
+def _news(symbol: str, count: int = 8):
     items = news_core.get_news(symbol, count)
-    table = Table(title=f"News: {symbol.upper()}")
+    table = Table(title=f"Yahoo News: {symbol.upper()}")
     table.add_column("Published")
     table.add_column("Publisher")
     table.add_column("Title")
@@ -89,16 +122,48 @@ def news(symbol: str, count: int = 8):
             console.print(f"  [dim]{it['title'][:60]}...[/] -> {it['link']}")
 
 
+def _google_news(query: str, count: int = 10):
+    items = google_news.get_google_news(query, count)
+    table = Table(title=f"Google News: {query}")
+    table.add_column("Published")
+    table.add_column("Source")
+    table.add_column("Title")
+    for it in items:
+        table.add_row(it["published"], it["source"], it["title"])
+    console.print(table)
+    for it in items:
+        if it["link"]:
+            console.print(f"  [dim]{it['title'][:60]}...[/] -> {it['link']}")
+
+
 @app.command()
-def dcf(
-    symbol: str = typer.Argument(..., help="Ticker to auto-seed base FCF/debt/shares"),
-    growth: float = typer.Option(0.08, help="Annual FCF growth during projection"),
-    years: int = typer.Option(5, help="Projection horizon"),
-    discount_rate: float = typer.Option(0.09, help="WACC"),
-    terminal_growth: float = typer.Option(0.025, help="Perpetuity growth rate"),
-    base_fcf: float = typer.Option(None, help="Override auto-fetched base FCF"),
+def news(symbol: str, count: int = 8):
+    """Latest Yahoo Finance headlines for a ticker."""
+    _news(symbol, count)
+
+
+@app.command()
+def googlenews(query: str, count: int = 10):
+    """Free Google News RSS search — no API key needed."""
+    _google_news(query, count)
+
+
+def _news_combined(symbol: str, company_name: str | None = None):
+    _news(symbol)
+    console.print()
+    _google_news(company_name or symbol)
+
+
+# ── DCF ────────────────────────────────────────────────────────────────────
+
+def _dcf(
+    symbol: str,
+    growth: float = 0.08,
+    years: int = 5,
+    discount_rate: float = 0.09,
+    terminal_growth: float = 0.025,
+    base_fcf: float | None = None,
 ):
-    """Run a DCF valuation, auto-seeded from Yahoo Finance fundamentals."""
     seed = dcf_core.fetch_dcf_base_inputs(symbol)
     inputs = dcf_core.DCFInputs(
         base_fcf=base_fcf if base_fcf is not None else seed["base_fcf"],
@@ -128,6 +193,21 @@ def dcf(
     console.print(table)
 
 
+@app.command()
+def dcf(
+    symbol: str = typer.Argument(..., help="Ticker to auto-seed base FCF/debt/shares"),
+    growth: float = typer.Option(0.08, help="Annual FCF growth during projection"),
+    years: int = typer.Option(5, help="Projection horizon"),
+    discount_rate: float = typer.Option(0.09, help="WACC"),
+    terminal_growth: float = typer.Option(0.025, help="Perpetuity growth rate"),
+    base_fcf: float = typer.Option(None, help="Override auto-fetched base FCF"),
+):
+    """Run a DCF valuation, auto-seeded from Yahoo Finance fundamentals."""
+    _dcf(symbol, growth, years, discount_rate, terminal_growth, base_fcf)
+
+
+# ── Portfolio ────────────────────────────────────────────────────────────
+
 portfolio_app = typer.Typer(help="Paper portfolio simulation.")
 app.add_typer(portfolio_app, name="portfolio")
 
@@ -144,8 +224,7 @@ def portfolio_sell(symbol: str, qty: float, price: float = typer.Option(None, he
     console.print(f"[red]Sold {qty} {symbol.upper()}[/]")
 
 
-@portfolio_app.command("show")
-def portfolio_show():
+def _portfolio_show():
     summary = portfolio_core.get_summary()
     table = Table(title="Portfolio")
     table.add_column("Symbol")
@@ -169,11 +248,18 @@ def portfolio_show():
     console.print(f"Cash: {summary['cash']:,.2f}   Total Equity: {summary['total_equity']:,.2f}")
 
 
+@portfolio_app.command("show")
+def portfolio_show():
+    _portfolio_show()
+
+
 @portfolio_app.command("reset")
 def portfolio_reset(cash: float = 100_000.0):
     portfolio_core.reset(cash)
     console.print(f"[yellow]Portfolio reset with {cash:,.2f} cash[/]")
 
+
+# ── Live movers/portfolio dashboard ─────────────────────────────────────────
 
 def _build_dashboard() -> Layout:
     layout = Layout()
@@ -181,7 +267,7 @@ def _build_dashboard() -> Layout:
         Layout(
             Panel(
                 "[bold cyan]project-trade[/] — live dashboard   "
-                "[dim](Ctrl+C to exit — try `project-trade quote AAPL`, `project-trade --help`)[/]",
+                "[dim](Ctrl+C to exit back to the menu)[/]",
             ),
             size=3,
         ),
@@ -230,28 +316,41 @@ def _build_dashboard() -> Layout:
 
 
 def _run_dashboard(refresh: int = 30):
-    with Live(_build_dashboard(), console=console, screen=True, refresh_per_second=1) as live:
-        try:
-            while True:
-                time.sleep(refresh)
-                live.update(_build_dashboard())
-        except KeyboardInterrupt:
-            pass
+    # Installs its own SIGINT handler rather than relying on the default
+    # KeyboardInterrupt propagation: when launched from the questionary menu,
+    # prompt_toolkit's prior prompt session can leave SIGINT handling in a
+    # state where the default translation no longer reaches this loop,
+    # killing the whole process instead of just returning to the menu.
+    stop = {"flag": False}
+
+    def _handler(signum, frame):
+        stop["flag"] = True
+
+    old_handler = signal.signal(signal.SIGINT, _handler)
+    try:
+        with Live(_build_dashboard(), console=console, screen=True, refresh_per_second=1) as live:
+            elapsed = 0
+            while not stop["flag"]:
+                time.sleep(1)
+                elapsed += 1
+                if stop["flag"]:
+                    break
+                if elapsed >= refresh:
+                    live.update(_build_dashboard())
+                    elapsed = 0
+    finally:
+        signal.signal(signal.SIGINT, old_handler)
 
 
 @app.command()
 def dashboard(refresh: int = typer.Option(30, help="Refresh interval in seconds")):
-    """Live terminal dashboard: top movers + your portfolio. This is what bare `project-trade` launches."""
+    """Live terminal dashboard: top movers + your portfolio."""
     _run_dashboard(refresh)
 
 
-@app.command()
-def analyze(
-    pdf_path: str = typer.Argument(..., help="Path to an annual report PDF"),
-    json_out: str = typer.Option(None, "--json", help="Write full report as JSON to this path"),
-):
-    """Financial statement analyzer: audit flags, other-income decomposition,
-    revenue quality, IFRS16 lease normalization, contingent liabilities, RPT screen."""
+# ── Financial Statement Analyzer ────────────────────────────────────────────
+
+def _analyze(pdf_path: str, json_out: str | None = None):
     with console.status(f"[bold cyan]Parsing {pdf_path}...[/]"):
         result = statement_report.analyze(pdf_path)
 
@@ -320,12 +419,228 @@ def analyze(
 
 
 @app.command()
+def analyze(
+    pdf_path: str = typer.Argument(..., help="Path to an annual report PDF"),
+    json_out: str = typer.Option(None, "--json", help="Write full report as JSON to this path"),
+):
+    """Financial statement analyzer: audit flags, other-income decomposition,
+    revenue quality, IFRS16 lease normalization, contingent liabilities, RPT screen."""
+    _analyze(pdf_path, json_out)
+
+
+# ── Web ──────────────────────────────────────────────────────────────────
+
+@app.command()
 def web(host: str = "127.0.0.1", port: int = 8000, reload: bool = False):
     """Launch the project-trade web app."""
     import uvicorn
 
     console.print(f"[bold cyan]Starting project-trade web app on http://{host}:{port}[/]")
     uvicorn.run("project_trade.web:app", host=host, port=port, reload=reload)
+
+
+# ── Interactive welcome menu ─────────────────────────────────────────────
+
+BANNER = """[bold #ff9f0a]
+ ____            _           _        _____              _
+|  _ \\ _ __ ___ (_) ___  ___| |_     |_   _| __ __ _  __| | ___
+| |_) | '__/ _ \\| |/ _ \\/ __| __|_____ | || '__/ _` |/ _` |/ _ \\
+|  __/| | | (_) | |  __/ (__| ||_____|| || | | (_| | (_| |  __/
+|_|   |_|  \\___// |\\___|\\___|\\__|     |_||_|  \\__,_|\\__,_|\\___|
+              |__/
+[/][dim]Bloomberg-terminal-style toolkit — DCF, statements, quotes, news, portfolio[/]"""
+
+EXIT_CHOICE = "🚪  Exit"
+
+MAIN_CHOICES = [
+    "📊  Live Market Dashboard (movers)",
+    "💰  Stock Quote",
+    "📈  DCF Valuation",
+    "🇮🇳  Nifty 50 Stocks",
+    "🇮🇳  Sensex 30 Stocks",
+    "📉  Market Movers",
+    "📰  News (Yahoo + Google RSS)",
+    "💼  Portfolio",
+    "📄  Financial Statement Analyzer",
+    "🌐  Launch Web Dashboard",
+    EXIT_CHOICE,
+]
+
+
+def _ask_symbol(default: str = "AAPL") -> str | None:
+    return questionary.text("Ticker symbol:", default=default, style=MENU_STYLE).ask()
+
+
+def _menu_quote():
+    symbol = _ask_symbol()
+    if not symbol:
+        return
+    try:
+        _quote(symbol)
+    except Exception as e:
+        console.print(f"[red]error: {e}[/]")
+    _pause()
+
+
+def _menu_dcf():
+    symbol = _ask_symbol()
+    if not symbol:
+        return
+    growth = questionary.text("Growth rate (e.g. 0.08):", default="0.08", style=MENU_STYLE).ask()
+    years = questionary.text("Projection years:", default="5", style=MENU_STYLE).ask()
+    discount = questionary.text("Discount rate / WACC (e.g. 0.09):", default="0.09", style=MENU_STYLE).ask()
+    try:
+        _dcf(symbol, float(growth), int(years), float(discount))
+    except Exception as e:
+        console.print(f"[red]error: {e}[/]")
+    _pause()
+
+
+def _menu_movers():
+    category = questionary.select(
+        "Category:", choices=["gainers", "losers", "active"], style=MENU_STYLE
+    ).ask()
+    if not category:
+        return
+    try:
+        _movers(category)
+    except Exception as e:
+        console.print(f"[red]error: {e}[/]")
+    _pause()
+
+
+def _menu_news():
+    query = questionary.text("Symbol or company name:", default="AAPL", style=MENU_STYLE).ask()
+    if not query:
+        return
+    try:
+        _news_combined(query)
+    except Exception as e:
+        console.print(f"[red]error: {e}[/]")
+    _pause()
+
+
+def _menu_portfolio():
+    action = questionary.select(
+        "Portfolio:",
+        choices=["Show", "Buy", "Sell", "Reset", "🔙 Back"],
+        style=MENU_STYLE,
+    ).ask()
+    if not action or action == "🔙 Back":
+        return
+    try:
+        if action == "Show":
+            _portfolio_show()
+        elif action == "Buy":
+            symbol = _ask_symbol()
+            qty = questionary.text("Quantity:", default="1", style=MENU_STYLE).ask()
+            if symbol and qty:
+                portfolio_core.buy(symbol, float(qty))
+                console.print(f"[green]Bought {qty} {symbol.upper()}[/]")
+        elif action == "Sell":
+            symbol = _ask_symbol()
+            qty = questionary.text("Quantity:", default="1", style=MENU_STYLE).ask()
+            if symbol and qty:
+                portfolio_core.sell(symbol, float(qty))
+                console.print(f"[red]Sold {qty} {symbol.upper()}[/]")
+        elif action == "Reset":
+            cash = questionary.text("Starting cash:", default="100000", style=MENU_STYLE).ask()
+            if cash:
+                portfolio_core.reset(float(cash))
+                console.print(f"[yellow]Portfolio reset with {float(cash):,.2f} cash[/]")
+    except Exception as e:
+        console.print(f"[red]error: {e}[/]")
+    _pause()
+
+
+def _menu_analyze():
+    pdf_path = questionary.path("Annual report PDF path:", style=MENU_STYLE).ask()
+    if not pdf_path:
+        return
+    try:
+        _analyze(pdf_path)
+    except Exception as e:
+        console.print(f"[red]error: {e}[/]")
+    _pause()
+
+
+def _menu_web():
+    console.print("[cyan]Starting web app on http://127.0.0.1:8000 — Ctrl+C to stop and return here[/]")
+    try:
+        web(host="127.0.0.1", port=8000, reload=False)
+    except KeyboardInterrupt:
+        pass
+    except SystemExit:
+        pass
+
+
+def _index_stock_picker(constituents: list[tuple[str, str]]):
+    choice = questionary.select(
+        "Pick a stock:",
+        choices=[f"{sym} — {name}" for sym, name in constituents] + ["🔙 Back"],
+        style=MENU_STYLE,
+    ).ask()
+    if not choice or choice == "🔙 Back":
+        return
+    nse_symbol = choice.split(" — ")[0]
+    company_name = choice.split(" — ", 1)[1]
+    yahoo_sym = indices.yahoo_symbol(nse_symbol)
+
+    action = questionary.select(
+        f"{nse_symbol} — {company_name}:",
+        choices=["Quote", "DCF Valuation", "News", "🔙 Back"],
+        style=MENU_STYLE,
+    ).ask()
+    if not action or action == "🔙 Back":
+        return
+    try:
+        if action == "Quote":
+            _quote(yahoo_sym)
+        elif action == "DCF Valuation":
+            _dcf(yahoo_sym)
+        elif action == "News":
+            _news_combined(yahoo_sym, company_name)
+    except Exception as e:
+        console.print(f"[red]error: {e}[/]")
+    _pause()
+
+
+def _main_menu():
+    console.print(Panel(BANNER, border_style="#ff9f0a"))
+    while True:
+        choice = questionary.select(
+            "Select a module:", choices=MAIN_CHOICES, style=MENU_STYLE
+        ).ask()
+        if not choice or choice == EXIT_CHOICE:
+            console.print("[dim]Goodbye.[/]")
+            break
+
+        if choice.startswith("📊"):
+            _run_dashboard(refresh=15)
+        elif choice.startswith("💰"):
+            _menu_quote()
+        elif choice.startswith("📈"):
+            _menu_dcf()
+        elif choice.startswith("🇮🇳  Nifty"):
+            _index_stock_picker(indices.NIFTY50)
+        elif choice.startswith("🇮🇳  Sensex"):
+            _index_stock_picker(indices.SENSEX30)
+        elif choice.startswith("📉"):
+            _menu_movers()
+        elif choice.startswith("📰"):
+            _menu_news()
+        elif choice.startswith("💼"):
+            _menu_portfolio()
+        elif choice.startswith("📄"):
+            _menu_analyze()
+        elif choice.startswith("🌐"):
+            _menu_web()
+
+
+@app.command()
+def menu():
+    """Interactive welcome menu — same as running `project-trade` with no arguments."""
+    _main_menu()
 
 
 if __name__ == "__main__":
