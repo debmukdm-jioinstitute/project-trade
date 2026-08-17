@@ -7,7 +7,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 
 from project_trade.core import dcf as dcf_core
 from project_trade.core import market, news as news_core, portfolio as portfolio_core
@@ -16,10 +15,6 @@ from project_trade.core.statement_analyzer import report as statement_report
 BASE_DIR = Path(__file__).parent
 
 app = FastAPI(title="project-trade")
-
-static_dir = BASE_DIR / "static"
-static_dir.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 _INDEX_HTML = (BASE_DIR / "templates" / "index.html").read_text()
 
