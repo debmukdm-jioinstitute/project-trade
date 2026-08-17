@@ -71,6 +71,14 @@
   </div>
 </div>
 
+<h2>Financial Statement Analyzer</h2>
+<div class="row">
+  <input type="file" id="analyzerFile" accept="application/pdf">
+  <button onclick="runAnalyzer()">Analyze</button>
+  <span id="analyzerStatus" style="color:#888;"></span>
+</div>
+<div id="analyzerResults"></div>
+
 <script>
 const pct = (v) => v == null ? "-" : (v >= 0 ? "up" : "down");
 const fmt = (v, d=2) => v == null ? "-" : Number(v).toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d});
@@ -138,6 +146,91 @@ async function portfolioSell() {
   fd.append('qty', document.getElementById('pfQty').value);
   await fetch('/api/portfolio/sell', { method: 'POST', body: fd });
   loadPortfolio();
+}
+
+async function runAnalyzer() {
+  const fileInput = document.getElementById('analyzerFile');
+  if (!fileInput.files.length) { alert('choose a PDF first'); return; }
+  const status = document.getElementById('analyzerStatus');
+  status.innerText = 'parsing... (can take a minute or two for large reports)';
+  document.getElementById('analyzerResults').innerHTML = '';
+
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  let r, data;
+  try {
+    r = await fetch('/api/analyze', { method: 'POST', body: fd });
+    data = await r.json();
+  } catch (e) {
+    status.innerText = 'error: ' + e;
+    return;
+  }
+  if (!r.ok) { status.innerText = 'error: ' + (data.detail || r.status); return; }
+  status.innerText = `done — ${data.page_count} pages`;
+  renderAnalyzerResults(data);
+}
+
+function renderAnalyzerResults(d) {
+  const el = document.getElementById('analyzerResults');
+  let html = '<div class="grid">';
+
+  html += '<div><h2>Audit Report</h2>';
+  html += `<div>Key Audit Matters: ${d.audit.key_audit_matters.length} &nbsp; Qualification flags: ${d.audit.qualification_flags.length}</div>`;
+  for (const f of d.audit.qualification_flags) {
+    html += `<div style="margin-top:6px;"><span class="${f.styled ? 'down' : ''}">p${f.page} (${f.type})</span><br><small>${f.text}</small></div>`;
+  }
+  html += '</div>';
+
+  html += '<div><h2>Other Income</h2>';
+  if (d.other_income.found) {
+    html += `<table><tr><th>Category</th><th>Amount</th></tr>`;
+    for (const [cat, amt] of Object.entries(d.other_income.by_category)) {
+      html += `<tr><td>${cat}</td><td>${fmt(amt)}</td></tr>`;
+    }
+    html += `</table><div>One-off share: ${fmt(d.other_income.one_off_pct_of_other_income,1)}%</div>`;
+  } else {
+    html += '<div style="color:#666;">note not found</div>';
+  }
+  html += '</div></div>';
+
+  html += '<div class="grid">';
+  html += '<div><h2>Revenue Quality</h2>';
+  html += `<div>Customer concentration mentions: ${d.revenue_quality.customer_concentration.length}</div>`;
+  html += `<div>Constant-currency mentions: ${d.revenue_quality.constant_currency_mentions.length}</div>`;
+  html += `<div>Cutoff-risk hits: ${d.revenue_quality.cutoff_risk_language.length}</div>`;
+  html += '</div>';
+
+  html += '<div><h2>IFRS16 Lease Normalization</h2>';
+  const l = d.lease_ifrs16;
+  html += `<table>
+    <tr><td>ROU Depreciation</td><td>${l.rou_depreciation != null ? fmt(l.rou_depreciation) : '-'}</td></tr>
+    <tr><td>Lease Interest</td><td>${l.lease_interest != null ? fmt(l.lease_interest) : '-'}</td></tr>
+    <tr><td>Reported EBITDA</td><td>${l.reported_ebitda ? fmt(l.reported_ebitda.value) : '-'}</td></tr>
+    <tr><td>Pre-IFRS16 EBITDA (est.)</td><td>${l.pre_ifrs16_ebitda_estimate != null ? fmt(l.pre_ifrs16_ebitda_estimate) : '-'}</td></tr>
+  </table>`;
+  html += '</div></div>';
+
+  html += '<div class="grid">';
+  html += '<div><h2>Contingent Liabilities</h2>';
+  const cl = d.contingent_liabilities;
+  html += `<div>Total extracted: ${fmt(cl.total_contingent_liabilities)}</div>`;
+  html += `<table><tr><th>Category</th><th>Amount</th></tr>`;
+  for (const [cat, amt] of Object.entries(cl.by_category)) {
+    html += `<tr><td>${cat}</td><td>${fmt(amt)}</td></tr>`;
+  }
+  html += `</table><div>Restricted cash mentions: ${cl.restricted_cash_mentions.length}</div>`;
+  html += '</div>';
+
+  html += '<div><h2>Related Party Screen</h2>';
+  const rpt = d.related_party;
+  html += `<div>Transactions found: ${rpt.transactions.length} &nbsp; High-risk: ${rpt.high_risk_transactions.length}</div>`;
+  html += `<table><tr><th>Label</th><th>Amount</th><th>Category</th></tr>`;
+  for (const t of rpt.transactions.slice(0, 20)) {
+    html += `<tr><td>${t.label}</td><td>${fmt(t.amount)}</td><td class="${t.high_risk ? 'down' : ''}">${t.category}</td></tr>`;
+  }
+  html += '</table></div></div>';
+
+  el.innerHTML = html;
 }
 
 loadQuote(); loadMovers(); loadNews(); loadPortfolio();

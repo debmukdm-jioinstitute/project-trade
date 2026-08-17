@@ -35,6 +35,34 @@ Both front ends share the same core logic in `src/project_trade/core/`
 (`market.py`, `dcf.py`, `news.py`, `portfolio.py`) — anything added there is
 instantly available from both the CLI and the web dashboard.
 
+## Financial Statement Analyzer
+
+Text-mines an annual report PDF for forensic-accounting-style red flags:
+
+```bash
+project-trade analyze /path/to/annual-report.pdf --json out.json
+```
+
+or via the web dashboard's "Financial Statement Analyzer" upload panel.
+
+- **Audit report parser** — Key Audit Matters, plus qualified/adverse/disclaimer
+  opinions and going-concern language, with bold/italic styling captured
+- **Other income decomposer** — splits the Other Income note into forex,
+  interest income, tax-refund interest, one-offs, dividends
+- **Revenue quality flags** — customer concentration %, constant-currency
+  mentions, cutoff-risk language
+- **IFRS16 / Ind AS 116 lease EBITDA normalizer** — reverses the lease-accounting
+  EBITDA uplift (ROU depreciation + lease interest) back to a pre-IFRS16 estimate
+- **Contingent liability tracker** — tax disputes, corporate guarantees,
+  restricted cash
+- **Related-party transaction screener** — classifies RPT note line items,
+  flags loans/guarantees/investments/advances as high-risk
+
+This is heuristic text-mining over inconsistently formatted PDFs, not a
+guaranteed-correct parser — always verify flagged items against the source
+document. Table and section extraction quality varies a lot with each report's
+PDF layout (scanned/image pages and heavily columnar layouts extract worst).
+
 ## Roadmap
 
 - Deal analysis (comps, precedent transactions)

@@ -1,12 +1,16 @@
 """project-trade CLI — Bloomberg-terminal-style toolkit for the terminal."""
 from __future__ import annotations
 
+import json
+
 import typer
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from project_trade.core import dcf as dcf_core
 from project_trade.core import market, news as news_core, portfolio as portfolio_core
+from project_trade.core.statement_analyzer import report as statement_report
 
 app = typer.Typer(help="project-trade: DCF, deal analysis, quotes, movers, news, portfolio sim — in your terminal.")
 console = Console()
@@ -157,6 +161,80 @@ def portfolio_show():
 def portfolio_reset(cash: float = 100_000.0):
     portfolio_core.reset(cash)
     console.print(f"[yellow]Portfolio reset with {cash:,.2f} cash[/]")
+
+
+@app.command()
+def analyze(
+    pdf_path: str = typer.Argument(..., help="Path to an annual report PDF"),
+    json_out: str = typer.Option(None, "--json", help="Write full report as JSON to this path"),
+):
+    """Financial statement analyzer: audit flags, other-income decomposition,
+    revenue quality, IFRS16 lease normalization, contingent liabilities, RPT screen."""
+    with console.status(f"[bold cyan]Parsing {pdf_path}...[/]"):
+        result = statement_report.analyze(pdf_path)
+
+    console.rule(f"[bold]{pdf_path}[/] ({result['page_count']} pages)")
+
+    audit = result["audit"]
+    kam_count = len(audit["key_audit_matters"])
+    qual_count = len(audit["qualification_flags"])
+    console.print(Panel(
+        f"Key Audit Matters found: {kam_count}\nQualification/going-concern flags: {qual_count}",
+        title="Audit Report",
+    ))
+    for flag in audit["qualification_flags"]:
+        style = "bold red" if flag["styled"] else "yellow"
+        console.print(f"  [{style}]p{flag['page']} ({flag['type']})[/{style}] {flag['text'][:150]}")
+
+    oi = result["other_income"]
+    if oi["found"]:
+        table = Table(title="Other Income Decomposition")
+        table.add_column("Category")
+        table.add_column("Amount", justify="right")
+        for cat, amt in oi["by_category"].items():
+            table.add_row(cat, f"{amt:,.2f}")
+        console.print(table)
+        console.print(f"  One-off share of other income: {oi['one_off_pct_of_other_income']:.1f}%")
+    else:
+        console.print("[dim]Other Income note not found[/]")
+
+    rq = result["revenue_quality"]
+    console.print(Panel(
+        f"Customer concentration mentions: {len(rq['customer_concentration'])}\n"
+        f"Constant-currency mentions: {len(rq['constant_currency_mentions'])}\n"
+        f"Cutoff-risk language hits: {len(rq['cutoff_risk_language'])}",
+        title="Revenue Quality",
+    ))
+
+    lease = result["lease_ifrs16"]
+    lease_table = Table(title="IFRS16 Lease EBITDA Normalization")
+    lease_table.add_column("Metric")
+    lease_table.add_column("Value", justify="right")
+    lease_table.add_row("ROU Depreciation", f"{lease['rou_depreciation']:,.2f}" if lease["rou_depreciation"] else "-")
+    lease_table.add_row("Lease Interest", f"{lease['lease_interest']:,.2f}" if lease["lease_interest"] else "-")
+    lease_table.add_row("Reported EBITDA (best-effort)", f"{lease['reported_ebitda']['value']:,.2f}" if lease["reported_ebitda"] else "-")
+    lease_table.add_row("Pre-IFRS16 EBITDA (est.)", f"{lease['pre_ifrs16_ebitda_estimate']:,.2f}" if lease["pre_ifrs16_ebitda_estimate"] else "-")
+    console.print(lease_table)
+
+    cl = result["contingent_liabilities"]
+    console.print(Panel(
+        f"Total contingent liabilities (extracted): {cl['total_contingent_liabilities']:,.2f}\n"
+        f"By category: {cl['by_category']}\n"
+        f"Restricted cash mentions: {len(cl['restricted_cash_mentions'])}",
+        title="Contingent Liabilities",
+    ))
+
+    rpt = result["related_party"]
+    console.print(Panel(
+        f"Transactions found: {len(rpt['transactions'])}\n"
+        f"High-risk (loan/guarantee/investment/advance): {len(rpt['high_risk_transactions'])}",
+        title="Related Party Screen",
+    ))
+
+    if json_out:
+        with open(json_out, "w") as f:
+            json.dump(result, f, indent=2, default=str)
+        console.print(f"[green]Full report written to {json_out}[/]")
 
 
 @app.command()

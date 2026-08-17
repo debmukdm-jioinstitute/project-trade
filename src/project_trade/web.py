@@ -1,14 +1,17 @@
 """project-trade web app — same core logic as the CLI, served over HTTP."""
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from project_trade.core import dcf as dcf_core
 from project_trade.core import market, news as news_core, portfolio as portfolio_core
+from project_trade.core.statement_analyzer import report as statement_report
 
 BASE_DIR = Path(__file__).parent
 
@@ -84,3 +87,16 @@ def api_portfolio_buy(symbol: str = Form(...), qty: float = Form(...)):
 @app.post("/api/portfolio/sell")
 def api_portfolio_sell(symbol: str = Form(...), qty: float = Form(...)):
     return portfolio_core.sell(symbol, qty)
+
+
+@app.post("/api/analyze")
+async def api_analyze(file: UploadFile = File(...)):
+    """Financial statement analyzer — accepts an annual report PDF, returns the
+    full flag report. Large reports (300+ pages) can take a minute or two."""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+    try:
+        return statement_report.analyze(tmp_path)
+    finally:
+        os.unlink(tmp_path)
