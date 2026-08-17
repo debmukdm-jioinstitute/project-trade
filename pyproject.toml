@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-trade"
+version = "0.1.0"
+description = "Bloomberg-terminal-style finance toolkit: DCF, deal analysis, quotes, movers, news, portfolio sim. CLI + web."
+requires-python = ">=3.10"
+dependencies = [
+    "yfinance>=0.2.38",
+    "typer>=0.12",
+    "rich>=13",
+    "textual>=0.60",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+]
+
+[project.scripts]
+project-trade = "project_trade.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+project_trade = ["templates/*.html", "static/*"]

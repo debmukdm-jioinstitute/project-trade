@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>project-trade</title>
+<style>
+  :root { color-scheme: dark; }
+  body { background:#0b0e11; color:#e6e6e6; font-family: "SF Mono", Menlo, monospace; margin:0; padding:24px; }
+  h1 { color:#ff9f0a; font-size:1.2rem; letter-spacing:.05em; }
+  h2 { color:#8ab4f8; font-size:.95rem; margin-top:2rem; border-bottom:1px solid #222; padding-bottom:4px; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; }
+  input, select, button { background:#14181d; color:#e6e6e6; border:1px solid #2a2f36; padding:6px 10px; font-family:inherit; }
+  button { cursor:pointer; }
+  button:hover { border-color:#ff9f0a; }
+  table { width:100%; border-collapse:collapse; font-size:.85rem; margin-top:8px; }
+  th, td { text-align:right; padding:4px 8px; border-bottom:1px solid #1c2026; }
+  th:first-child, td:first-child { text-align:left; }
+  .up { color:#3ddc84; }
+  .down { color:#ff5c5c; }
+  .row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+</style>
+</head>
+<body>
+<h1>&gt; project-trade</h1>
+
+<div class="grid">
+  <div>
+    <h2>Quote</h2>
+    <div class="row">
+      <input id="quoteSymbol" placeholder="AAPL" value="AAPL">
+      <button onclick="loadQuote()">Get</button>
+    </div>
+    <table id="quoteTable"></table>
+
+    <h2>DCF Valuation</h2>
+    <div class="row">
+      <input id="dcfSymbol" placeholder="AAPL" value="AAPL">
+      <button onclick="loadDCF()">Run DCF</button>
+    </div>
+    <table id="dcfTable"></table>
+
+    <h2>Portfolio</h2>
+    <div class="row">
+      <input id="pfSymbol" placeholder="symbol" style="width:80px">
+      <input id="pfQty" placeholder="qty" type="number" style="width:80px">
+      <button onclick="portfolioBuy()">Buy</button>
+      <button onclick="portfolioSell()">Sell</button>
+      <button onclick="loadPortfolio()">Refresh</button>
+    </div>
+    <table id="portfolioTable"></table>
+    <div id="portfolioSummary" style="margin-top:6px;"></div>
+  </div>
+
+  <div>
+    <h2>Market Movers</h2>
+    <div class="row">
+      <select id="moverCategory" onchange="loadMovers()">
+        <option value="gainers">Gainers</option>
+        <option value="losers">Losers</option>
+        <option value="active">Most Active</option>
+      </select>
+    </div>
+    <table id="moversTable"></table>
+
+    <h2>News</h2>
+    <div class="row">
+      <input id="newsSymbol" placeholder="AAPL" value="AAPL">
+      <button onclick="loadNews()">Get</button>
+    </div>
+    <div id="newsList"></div>
+  </div>
+</div>
+
+<script>
+const pct = (v) => v == null ? "-" : (v >= 0 ? "up" : "down");
+const fmt = (v, d=2) => v == null ? "-" : Number(v).toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d});
+
+async function loadQuote() {
+  const sym = document.getElementById('quoteSymbol').value;
+  const r = await fetch(`/api/quote/${sym}`); const q = await r.json();
+  document.getElementById('quoteTable').innerHTML = `
+    <tr><th>${q.name}</th><th>${q.symbol}</th></tr>
+    <tr><td>Price</td><td>${fmt(q.price)}</td></tr>
+    <tr><td>Change</td><td class="${pct(q.change)}">${fmt(q.change)} (${fmt(q.change_pct)}%)</td></tr>
+    <tr><td>Prev Close</td><td>${fmt(q.prev_close)}</td></tr>
+    <tr><td>Volume</td><td>${fmt(q.volume,0)}</td></tr>`;
+}
+
+async function loadDCF() {
+  const sym = document.getElementById('dcfSymbol').value;
+  const r = await fetch(`/api/dcf/${sym}`); const d = await r.json();
+  document.getElementById('dcfTable').innerHTML = `
+    <tr><th>${d.symbol}</th><th></th></tr>
+    <tr><td>Enterprise Value</td><td>${fmt(d.enterprise_value,0)}</td></tr>
+    <tr><td>Equity Value</td><td>${fmt(d.equity_value,0)}</td></tr>
+    <tr><td>Implied Share Price</td><td>${fmt(d.implied_share_price)}</td></tr>
+    <tr><td>Current Price</td><td>${fmt(d.seed.current_price)}</td></tr>`;
+}
+
+async function loadMovers() {
+  const cat = document.getElementById('moverCategory').value;
+  const r = await fetch(`/api/movers/${cat}`); const rows = await r.json();
+  let html = `<tr><th>Symbol</th><th>Price</th><th>Chg %</th></tr>`;
+  for (const row of rows) {
+    html += `<tr><td>${row.symbol}</td><td>${fmt(row.price)}</td><td class="${pct(row.change_pct)}">${fmt(row.change_pct)}%</td></tr>`;
+  }
+  document.getElementById('moversTable').innerHTML = html;
+}
+
+async function loadNews() {
+  const sym = document.getElementById('newsSymbol').value;
+  const r = await fetch(`/api/news/${sym}`); const items = await r.json();
+  document.getElementById('newsList').innerHTML = items.map(it =>
+    `<div style="margin-bottom:6px;"><a href="${it.link}" target="_blank" style="color:#8ab4f8;">${it.title}</a><br><small style="color:#666;">${it.publisher} ${it.published}</small></div>`
+  ).join("");
+}
+
+async function loadPortfolio() {
+  const r = await fetch('/api/portfolio'); const s = await r.json();
+  let html = `<tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>P&L</th></tr>`;
+  for (const p of s.positions) {
+    html += `<tr><td>${p.symbol}</td><td>${fmt(p.qty)}</td><td>${fmt(p.avg_cost)}</td><td>${fmt(p.price)}</td><td class="${pct(p.unrealized_pnl)}">${fmt(p.unrealized_pnl)}</td></tr>`;
+  }
+  document.getElementById('portfolioTable').innerHTML = html;
+  document.getElementById('portfolioSummary').innerText = `Cash: ${fmt(s.cash)}   Total Equity: ${fmt(s.total_equity)}`;
+}
+
+async function portfolioBuy() {
+  const fd = new FormData();
+  fd.append('symbol', document.getElementById('pfSymbol').value);
+  fd.append('qty', document.getElementById('pfQty').value);
+  await fetch('/api/portfolio/buy', { method: 'POST', body: fd });
+  loadPortfolio();
+}
+async function portfolioSell() {
+  const fd = new FormData();
+  fd.append('symbol', document.getElementById('pfSymbol').value);
+  fd.append('qty', document.getElementById('pfQty').value);
+  await fetch('/api/portfolio/sell', { method: 'POST', body: fd });
+  loadPortfolio();
+}
+
+loadQuote(); loadMovers(); loadNews(); loadPortfolio();
+</script>
+</body>
+</html>
