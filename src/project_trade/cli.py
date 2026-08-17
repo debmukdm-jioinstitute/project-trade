@@ -160,31 +160,98 @@ def _dcf(
     symbol: str,
     growth: float = 0.08,
     years: int = 5,
-    discount_rate: float = 0.09,
+    discount_rate: float | None = None,
     terminal_growth: float = 0.025,
     base_fcf: float | None = None,
 ):
+    import datetime
+
     seed = dcf_core.fetch_dcf_base_inputs(symbol)
+    wacc_inputs = dcf_core.fetch_wacc_inputs(symbol)
+    historical = dcf_core.fetch_historical_financials(symbol)
+    effective_discount_rate = discount_rate if discount_rate is not None else wacc_inputs["wacc"]
+
     inputs = dcf_core.DCFInputs(
         base_fcf=base_fcf if base_fcf is not None else seed["base_fcf"],
         growth_rate=growth,
         years=years,
-        discount_rate=discount_rate,
+        discount_rate=effective_discount_rate,
         terminal_growth=terminal_growth,
         net_debt=seed["net_debt"],
         shares_outstanding=seed["shares_outstanding"],
+        base_year=datetime.date.today().year,
     )
     result = dcf_core.run_dcf(inputs)
 
-    table = Table(title=f"DCF: {symbol.upper()}")
+    console.rule(f"[bold]DCF: {symbol.upper()}[/]")
+
+    # ── Past ──
+    if historical:
+        hist_table = Table(title="Historical Financials (Past)")
+        hist_table.add_column("Year")
+        hist_table.add_column("Revenue", justify="right")
+        hist_table.add_column("Rev Growth", justify="right")
+        hist_table.add_column("EBITDA", justify="right")
+        hist_table.add_column("Net Income", justify="right")
+        hist_table.add_column("Free Cash Flow", justify="right")
+        for row in historical:
+            growth_pct = row.get("revenue_growth_pct")
+            hist_table.add_row(
+                str(row["year"]),
+                f"{row['revenue']:,.0f}" if row["revenue"] else "-",
+                f"[{_color(growth_pct)}]{growth_pct:+.1f}%[/]" if growth_pct is not None else "-",
+                f"{row['ebitda']:,.0f}" if row["ebitda"] else "-",
+                f"{row['net_income']:,.0f}" if row["net_income"] else "-",
+                f"{row['free_cash_flow']:,.0f}" if row["free_cash_flow"] else "-",
+            )
+        console.print(hist_table)
+
+    # ── Present: WACC / CAPM ──
+    wacc_table = Table(title="WACC / CAPM (Present)")
+    wacc_table.add_column("Component")
+    wacc_table.add_column("Value", justify="right")
+    wacc_table.add_row("Beta", f"{wacc_inputs['beta']:.2f}")
+    wacc_table.add_row("Risk-Free Rate", f"{wacc_inputs['risk_free_rate']*100:.2f}%")
+    wacc_table.add_row("Equity Risk Premium", f"{wacc_inputs['equity_risk_premium']*100:.2f}%")
+    wacc_table.add_row("Cost of Equity", f"{wacc_inputs['cost_of_equity']*100:.2f}%")
+    wacc_table.add_row("Cost of Debt (after-tax)", f"{wacc_inputs['cost_of_debt']*(1-wacc_inputs['tax_rate'])*100:.2f}%")
+    wacc_table.add_row("Equity Weight", f"{wacc_inputs['equity_weight']*100:.1f}%")
+    wacc_table.add_row("Debt Weight", f"{wacc_inputs['debt_weight']*100:.1f}%")
+    wacc_table.add_row("WACC", f"[bold]{wacc_inputs['wacc']*100:.2f}%[/]")
+    if discount_rate is not None:
+        wacc_table.add_row("Discount Rate Used (override)", f"{effective_discount_rate*100:.2f}%")
+    console.print(wacc_table)
+
+    # ── Future: year-by-year projection ──
+    proj_table = Table(title=f"Projection — {growth*100:.1f}% growth, {years}y (Future)")
+    proj_table.add_column("Year")
+    proj_table.add_column("FCF", justify="right")
+    proj_table.add_column("Discount Factor", justify="right")
+    proj_table.add_column("PV of FCF", justify="right")
+    proj_table.add_column("Cumulative PV", justify="right")
+    for p in result.projection:
+        proj_table.add_row(
+            str(p.year) if p.year else "-",
+            f"{p.fcf:,.0f}",
+            f"{p.discount_factor:.3f}",
+            f"{p.pv:,.0f}",
+            f"{p.cumulative_pv:,.0f}",
+        )
+    console.print(proj_table)
+
+    # ── Valuation summary ──
+    table = Table(title="Valuation Summary")
     table.add_column("Metric")
     table.add_column("Value", justify="right")
     table.add_row("Base FCF", f"{inputs.base_fcf:,.0f}")
-    table.add_row("Enterprise Value", f"{result.enterprise_value:,.0f}")
+    table.add_row("Sum PV of FCF", f"{sum(result.pv_fcf):,.0f}")
+    table.add_row("Terminal Value", f"{result.terminal_value:,.0f}")
+    table.add_row("PV of Terminal Value", f"{result.pv_terminal_value:,.0f}")
+    table.add_row("Enterprise Value", f"[bold]{result.enterprise_value:,.0f}[/]")
     table.add_row("Net Debt", f"{inputs.net_debt:,.0f}")
-    table.add_row("Equity Value", f"{result.equity_value:,.0f}")
+    table.add_row("Equity Value", f"[bold]{result.equity_value:,.0f}[/]")
     if result.implied_share_price:
-        table.add_row("Implied Share Price", f"{result.implied_share_price:,.2f}")
+        table.add_row("Implied Share Price", f"[bold]{result.implied_share_price:,.2f}[/]")
     if seed.get("current_price"):
         table.add_row("Current Price", f"{seed['current_price']:,.2f}")
         if result.implied_share_price:
@@ -192,17 +259,34 @@ def _dcf(
             table.add_row("Implied Upside", f"[{_color(upside)}]{upside:+.1f}%[/]")
     console.print(table)
 
+    # ── Sensitivity ──
+    step = 0.01
+    discount_rates = [round(effective_discount_rate + i * step, 4) for i in (-2, -1, 0, 1, 2)]
+    terminal_growths = [round(terminal_growth + i * 0.005, 4) for i in (-2, -1, 0, 1, 2)]
+    matrix = dcf_core.sensitivity_matrix(inputs, discount_rates, terminal_growths)
+    sens_table = Table(title="Sensitivity: Implied Share Price (rows=discount rate, cols=terminal growth)")
+    sens_table.add_column("WACC \\ g")
+    for tg in terminal_growths:
+        sens_table.add_column(f"{tg*100:.1f}%", justify="right")
+    for dr, row in zip(discount_rates, matrix):
+        sens_table.add_row(
+            f"{dr*100:.1f}%",
+            *[f"{v:,.2f}" if v is not None else "-" for v in row],
+        )
+    console.print(sens_table)
+
 
 @app.command()
 def dcf(
     symbol: str = typer.Argument(..., help="Ticker to auto-seed base FCF/debt/shares"),
     growth: float = typer.Option(0.08, help="Annual FCF growth during projection"),
     years: int = typer.Option(5, help="Projection horizon"),
-    discount_rate: float = typer.Option(0.09, help="WACC"),
+    discount_rate: float = typer.Option(None, help="WACC override — auto-computed via CAPM if omitted"),
     terminal_growth: float = typer.Option(0.025, help="Perpetuity growth rate"),
     base_fcf: float = typer.Option(None, help="Override auto-fetched base FCF"),
 ):
-    """Run a DCF valuation, auto-seeded from Yahoo Finance fundamentals."""
+    """Detailed DCF valuation: historical financials, CAPM/WACC, full year-by-year
+    projection, and a sensitivity matrix — auto-seeded from Yahoo Finance."""
     _dcf(symbol, growth, years, discount_rate, terminal_growth, base_fcf)
 
 

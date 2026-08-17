@@ -1,6 +1,7 @@
 """project-trade web app — same core logic as the CLI, served over HTTP."""
 from __future__ import annotations
 
+import datetime
 import os
 import tempfile
 from pathlib import Path
@@ -65,27 +66,78 @@ def api_dcf(
     symbol: str,
     growth: float = 0.08,
     years: int = 5,
-    discount_rate: float = 0.09,
+    discount_rate: float | None = None,
     terminal_growth: float = 0.025,
 ):
+    """Full detailed DCF: historical financials (past), WACC/CAPM breakdown and
+    current fundamentals (present), year-by-year projection and a sensitivity
+    matrix (future) — not just the summary numbers."""
     seed = dcf_core.fetch_dcf_base_inputs(symbol)
+    wacc_inputs = dcf_core.fetch_wacc_inputs(symbol)
+    historical = dcf_core.fetch_historical_financials(symbol)
+
+    effective_discount_rate = discount_rate if discount_rate is not None else wacc_inputs["wacc"]
+    base_year = datetime.date.today().year
+
     inputs = dcf_core.DCFInputs(
         base_fcf=seed["base_fcf"],
         growth_rate=growth,
         years=years,
-        discount_rate=discount_rate,
+        discount_rate=effective_discount_rate,
         terminal_growth=terminal_growth,
         net_debt=seed["net_debt"],
         shares_outstanding=seed["shares_outstanding"],
+        base_year=base_year,
     )
     result = dcf_core.run_dcf(inputs)
+
+    step = 0.01
+    discount_rates = [round(effective_discount_rate + i * step, 4) for i in (-2, -1, 0, 1, 2)]
+    terminal_growths = [round(terminal_growth + i * 0.005, 4) for i in (-2, -1, 0, 1, 2)]
+    sensitivity = dcf_core.sensitivity_matrix(inputs, discount_rates, terminal_growths)
+
+    implied_upside = None
+    if result.implied_share_price and seed.get("current_price"):
+        implied_upside = (result.implied_share_price / seed["current_price"] - 1) * 100
+
     return {
         "symbol": symbol.upper(),
         "seed": seed,
+        "historical": historical,
+        "wacc": wacc_inputs,
+        "assumptions": {
+            "base_fcf": inputs.base_fcf,
+            "growth_rate": growth,
+            "years": years,
+            "discount_rate": effective_discount_rate,
+            "discount_rate_is_wacc": discount_rate is None,
+            "terminal_growth": terminal_growth,
+            "net_debt": seed["net_debt"],
+            "shares_outstanding": seed["shares_outstanding"],
+            "base_year": base_year,
+        },
+        "projection": [
+            {
+                "year": p.year,
+                "fcf": p.fcf,
+                "discount_factor": p.discount_factor,
+                "pv": p.pv,
+                "cumulative_pv": p.cumulative_pv,
+            }
+            for p in result.projection
+        ],
+        "terminal_value": result.terminal_value,
+        "pv_terminal_value": result.pv_terminal_value,
         "enterprise_value": result.enterprise_value,
         "equity_value": result.equity_value,
         "implied_share_price": result.implied_share_price,
-        "terminal_value": result.terminal_value,
+        "current_price": seed.get("current_price"),
+        "implied_upside_pct": implied_upside,
+        "sensitivity": {
+            "discount_rates": discount_rates,
+            "terminal_growths": terminal_growths,
+            "matrix": sensitivity,
+        },
     }
 
 
