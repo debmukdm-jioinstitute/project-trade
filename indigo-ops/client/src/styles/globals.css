@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html, body, #root {
@@ -29,14 +29,14 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #05070c;
+  background: #f4f5f8;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1c2536;
+  background: #c3cad6;
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a3652;
+  background: #a8b0c0;
 }
 
 .panel {

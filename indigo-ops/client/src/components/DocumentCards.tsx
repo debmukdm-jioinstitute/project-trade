@@ -1,7 +1,7 @@
 import { QrImage, BarcodeImage } from "./QrBarcode";
 import type { Booking, BoardingPass, MealVoucher, LoungePass } from "../lib/api";
 
-const cardBase = "bg-white text-black p-4 w-[420px] font-mono shadow-lg print:shadow-none";
+const cardBase = "bg-white text-black p-4 w-[420px] font-mono shadow-lg border border-neutral-300 print:shadow-none print:border-0";
 
 export function BoardingPassCard({ booking, bp }: { booking: Booking; bp: BoardingPass }) {
   return (
