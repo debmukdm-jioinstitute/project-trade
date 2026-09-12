@@ -114,3 +114,32 @@ bookingsRouter.post(
     res.status(201).json(service);
   })
 );
+
+// Bulk-approve a selected set of passengers in one click: check-in (if
+// pending) + security-clear their baggage + generate a boarding pass.
+bookingsRouter.post(
+  "/bulk-approve",
+  handle(async (req, res) => {
+    const bookingIds: string[] = Array.isArray(req.body.bookingIds) ? req.body.bookingIds : [];
+    const approved: string[] = [];
+    const failed: { bookingId: string; message: string }[] = [];
+
+    for (const id of bookingIds) {
+      try {
+        const booking = await prisma.booking.findUniqueOrThrow({ where: { id } });
+        if (!booking.checkedIn) await bookingService.checkIn(id);
+        await prisma.baggage.updateMany({
+          where: { bookingId: id, status: { in: ["CREATED", "ACCEPTED"] } },
+          data: { status: "SECURITY_CLEARED" },
+        });
+        const hasValidBp = await prisma.boardingPass.findFirst({ where: { bookingId: id, status: "VALID" } });
+        if (!hasValidBp) await boardingService.generateBoardingPass(id);
+        approved.push(id);
+      } catch (err) {
+        failed.push({ bookingId: id, message: (err as Error).message });
+      }
+    }
+
+    res.json({ approved, failed });
+  })
+);

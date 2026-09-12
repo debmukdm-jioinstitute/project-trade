@@ -10,7 +10,7 @@ const NAV = [
   { label: "REPORTS", path: "/reports", key: "F8" },
 ];
 
-export function TerminalHeader({ onNav, current }: { onNav: (path: string) => void; current: string }) {
+export function TerminalHeader({ onNav, current, onLock }: { onNav: (path: string) => void; current: string; onLock: () => void }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -95,6 +95,9 @@ export function TerminalHeader({ onNav, current }: { onNav: (path: string) => vo
         <div className="ml-auto flex items-center gap-2 pr-2 text-ops-dim">
           <span>[/] SEARCH</span>
           <span>[CTRL+K] COMMAND</span>
+          <button onClick={onLock} className="btn-danger btn ml-2 py-0.5">
+            🔒 LOCK
+          </button>
         </div>
       </div>
     </div>

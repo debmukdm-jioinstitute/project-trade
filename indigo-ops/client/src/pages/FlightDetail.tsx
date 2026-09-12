@@ -4,7 +4,19 @@ import { api, Aircraft, FlightRow, Gate } from "../lib/api";
 import { StatusBadge } from "../components/StatusBadge";
 import { useToast } from "../components/Toast";
 
-type Tab = "OVERVIEW" | "BOARDING" | "DEPARTURE" | "ARRIVAL" | "BAGGAGE";
+type Tab = "OVERVIEW" | "CUSTOMERS" | "BOARDING" | "DEPARTURE" | "ARRIVAL" | "BAGGAGE";
+
+interface Customer {
+  bookingId: string;
+  pnr: string;
+  name: string;
+  seat: string;
+  checkedIn: boolean;
+  boarded: boolean;
+  noShow: boolean;
+  securityCleared: boolean;
+  boardingPass: boolean;
+}
 
 interface BoardingSummary {
   totalPax: number;
@@ -59,6 +71,36 @@ export default function FlightDetail() {
     }
   }
 
+  async function checkInAll() {
+    try {
+      const r = await api.post<{ checkedIn: number; skipped: number; failed: { pnr: string; message: string }[] }>(
+        `/flights/${id}/checkin-all`
+      );
+      if (r.skipped > 0) {
+        toast.push({
+          kind: r.checkedIn > 0 ? "success" : "error",
+          title: `${r.checkedIn} CHECKED IN, ${r.skipped} SKIPPED`,
+          message: r.failed[0]?.message,
+        });
+      } else {
+        toast.push({ kind: "success", title: `${r.checkedIn} PASSENGER(S) CHECKED IN` });
+      }
+      load();
+    } catch (e) {
+      toast.push({ kind: "error", title: (e as any).title ?? "BULK CHECK-IN FAILED", message: (e as Error).message });
+    }
+  }
+
+  async function securityClearAll() {
+    try {
+      const r = await api.post<{ cleared: number }>(`/flights/${id}/security-clear-all`);
+      toast.push({ kind: "success", title: `${r.cleared} BAG(S) SECURITY CLEARED` });
+      load();
+    } catch (e) {
+      toast.push({ kind: "error", title: (e as any).title ?? "ACTION FAILED", message: (e as Error).message });
+    }
+  }
+
   if (!flight) return <div className="p-4 text-ops-dim">LOADING FLIGHT...</div>;
 
   return (
@@ -77,7 +119,7 @@ export default function FlightDetail() {
       </div>
 
       <div className="flex gap-1 border-b border-ops-border">
-        {(["OVERVIEW", "BOARDING", "DEPARTURE", "ARRIVAL", "BAGGAGE"] as Tab[]).map((t) => (
+        {(["OVERVIEW", "CUSTOMERS", "BOARDING", "DEPARTURE", "ARRIVAL", "BAGGAGE"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -122,6 +164,15 @@ export default function FlightDetail() {
               <button className="btn" onClick={() => act("/delay", { minutes: 15 }, "FLIGHT DELAYED 15 MIN")}>DELAY +15 MIN</button>
               <button className="btn-danger btn" onClick={() => act("/cancel", {}, "FLIGHT CANCELLED")}>CANCEL FLIGHT</button>
             </div>
+            <div className="text-[11px] text-ops-dim uppercase pt-2">Universal Bulk Actions</div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-primary btn" onClick={checkInAll}>
+                ✓ CHECK-IN ALL PASSENGERS
+              </button>
+              <button className="btn-primary btn" onClick={securityClearAll}>
+                ✓ SECURITY CLEAR ALL BAGGAGE
+              </button>
+            </div>
           </div>
           <div className="panel p-3 space-y-1 text-[12px]">
             <div className="text-[11px] text-ops-dim uppercase mb-1">Flight Info</div>
@@ -136,6 +187,7 @@ export default function FlightDetail() {
         </div>
       )}
 
+      {tab === "CUSTOMERS" && <CustomersTab flightId={id!} refreshParent={load} />}
       {tab === "BOARDING" && <BoardingTab flightId={id!} refreshParent={load} />}
       {tab === "DEPARTURE" && <DepartureTab flightId={id!} status={flight.status} act={act} />}
       {tab === "ARRIVAL" && <ArrivalTab flightId={id!} status={flight.status} act={act} gates={gates} />}
@@ -149,6 +201,114 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between border-b border-ops-border/40 py-1">
       <span className="text-ops-dim">{label}</span>
       <span>{value}</span>
+    </div>
+  );
+}
+
+function CustomersTab({ flightId, refreshParent }: { flightId: string; refreshParent: () => void }) {
+  const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [approving, setApproving] = useState(false);
+  const toast = useToast();
+
+  const load = useCallback(async () => {
+    setCustomers(await api.get<Customer[]>(`/flights/${flightId}/customers`));
+  }, [flightId]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (!customers) return;
+    setSelected((prev) => (prev.size === customers.length ? new Set() : new Set(customers.map((c) => c.bookingId))));
+  }
+
+  async function approveSelected() {
+    if (selected.size === 0) return;
+    setApproving(true);
+    try {
+      const r = await api.post<{ approved: string[]; failed: { bookingId: string; message: string }[] }>(
+        "/bookings/bulk-approve",
+        { bookingIds: [...selected] }
+      );
+      toast.push({
+        kind: r.failed.length === 0 ? "success" : "error",
+        title: `${r.approved.length} APPROVED${r.failed.length ? `, ${r.failed.length} FAILED` : ""}`,
+        message: r.failed[0]?.message,
+      });
+      setSelected(new Set());
+      load();
+      refreshParent();
+    } finally {
+      setApproving(false);
+    }
+  }
+
+  if (!customers) return <div className="text-ops-dim p-2">LOADING CUSTOMERS...</div>;
+
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <span>ALL CUSTOMERS — SELECT &amp; APPROVE</span>
+        <div className="flex items-center gap-2">
+          <span className="text-ops-dim">{selected.size} SELECTED</span>
+          <button className="btn-primary btn" disabled={selected.size === 0 || approving} onClick={approveSelected}>
+            ✓ APPROVE SELECTED
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+        <table className="ops-table">
+          <thead>
+            <tr>
+              <th>
+                <input type="checkbox" checked={selected.size === customers.length && customers.length > 0} onChange={toggleAll} />
+              </th>
+              <th>PNR</th>
+              <th>Name</th>
+              <th>Seat</th>
+              <th>Check-in</th>
+              <th>Security</th>
+              <th>Boarding Pass</th>
+              <th>Boarded</th>
+            </tr>
+          </thead>
+          <tbody>
+            {customers.map((c) => (
+              <tr key={c.bookingId} onClick={() => toggle(c.bookingId)}>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={selected.has(c.bookingId)} onChange={() => toggle(c.bookingId)} />
+                </td>
+                <td>{c.pnr}</td>
+                <td>{c.name}</td>
+                <td>{c.seat}</td>
+                <td>
+                  <StatusBadge status={c.checkedIn ? "CHECKED-IN" : c.noShow ? "NO-SHOW" : "PENDING"} />
+                </td>
+                <td>
+                  <StatusBadge status={c.securityCleared ? "CLEARED" : "PENDING"} />
+                </td>
+                <td>
+                  <StatusBadge status={c.boardingPass ? "VALID" : "NONE"} />
+                </td>
+                <td>
+                  <StatusBadge status={c.boarded ? "BOARDED" : "PENDING"} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {customers.length === 0 && <div className="p-3 text-ops-dim text-[12px]">NO CUSTOMERS ON THIS FLIGHT</div>}
+      </div>
     </div>
   );
 }

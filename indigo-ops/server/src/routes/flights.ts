@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import * as flightService from "../services/flightService.js";
+import { checkIn } from "../services/bookingService.js";
+import { generateBoardingPass } from "../services/boardingService.js";
+import { audit } from "../lib/audit.js";
+import { OpsError } from "../lib/errors.js";
 import { handle } from "../lib/handle.js";
 
 export const flightsRouter = Router();
@@ -210,5 +214,68 @@ flightsRouter.post(
   "/:id/close",
   handle(async (req, res) => {
     res.json(await flightService.closeFlight(req.params.id));
+  })
+);
+
+// ---- Universal bulk operations (one-click ops for large passenger loads) ----
+
+flightsRouter.post(
+  "/:id/checkin-all",
+  handle(async (req, res) => {
+    const flightId = req.params.id;
+    const bookings = await prisma.booking.findMany({
+      where: { flightId, status: { not: "CANCELLED" }, checkedIn: false },
+    });
+    let checkedIn = 0;
+    const failed: { pnr: string; message: string }[] = [];
+    for (const b of bookings) {
+      try {
+        await checkIn(b.id);
+        checkedIn++;
+      } catch (err) {
+        failed.push({ pnr: b.pnr, message: err instanceof OpsError ? err.message : "Failed" });
+        if (err instanceof OpsError) break; // flight-level gate (e.g. check-in not open) — no point retrying the rest
+      }
+    }
+    await audit("CHECKIN", `BULK CHECK-IN — ${checkedIn} PASSENGER(S) CHECKED IN`, undefined);
+    res.json({ checkedIn, alreadyDone: 0, skipped: failed.length, failed });
+  })
+);
+
+flightsRouter.post(
+  "/:id/security-clear-all",
+  handle(async (req, res) => {
+    const flightId = req.params.id;
+    const { count } = await prisma.baggage.updateMany({
+      where: { flightId, status: { in: ["CREATED", "ACCEPTED"] } },
+      data: { status: "SECURITY_CLEARED" },
+    });
+    const flight = await prisma.flight.findUniqueOrThrow({ where: { id: flightId } });
+    await audit("BAGGAGE", `BULK SECURITY CLEARANCE — ${count} BAG(S) CLEARED`, flight.flightNumber);
+    res.json({ cleared: count });
+  })
+);
+
+flightsRouter.get(
+  "/:id/customers",
+  handle(async (req, res) => {
+    const bookings = await prisma.booking.findMany({
+      where: { flightId: req.params.id, status: { not: "CANCELLED" } },
+      include: { passenger: true, seat: true, baggage: true, boardingPasses: true },
+      orderBy: [{ sequenceNumber: "asc" }],
+    });
+    res.json(
+      bookings.map((b) => ({
+        bookingId: b.id,
+        pnr: b.pnr,
+        name: b.passenger.name,
+        seat: b.seat?.seatNumber ?? "-",
+        checkedIn: b.checkedIn,
+        boarded: b.boarded,
+        noShow: b.noShow,
+        securityCleared: b.baggage.length === 0 || b.baggage.every((bg) => bg.status !== "CREATED" && bg.status !== "ACCEPTED"),
+        boardingPass: b.boardingPasses.some((bp) => bp.status === "VALID"),
+      }))
+    );
   })
 );

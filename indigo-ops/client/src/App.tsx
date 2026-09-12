@@ -4,6 +4,7 @@ import { TerminalHeader } from "./components/TerminalHeader";
 import { CommandConsole } from "./components/CommandConsole";
 import { GlobalSearch } from "./components/GlobalSearch";
 import { ToastProvider } from "./components/Toast";
+import { LockScreen, isUnlocked, lockSession } from "./components/LockScreen";
 
 import Dashboard from "./pages/Dashboard";
 import Flights from "./pages/Flights";
@@ -28,6 +29,7 @@ import FIDS from "./pages/FIDS";
 function AppShell() {
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [locked, setLocked] = useState(() => !isUnlocked());
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -78,9 +80,13 @@ function AppShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [navigate]);
 
+  if (locked) {
+    return <LockScreen onUnlock={() => setLocked(false)} />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
-      <TerminalHeader onNav={navigate} current={location.pathname} />
+      <TerminalHeader onNav={navigate} current={location.pathname} onLock={() => { lockSession(); setLocked(true); }} />
       <div className="flex-1 overflow-y-auto">
         <Routes>
           <Route path="/" element={<Dashboard />} />
