@@ -4,6 +4,7 @@ import { api, DashboardData } from "../lib/api";
 import { StatsCard } from "../components/StatsCard";
 import { AlertPanel } from "../components/AlertPanel";
 import { StatusBadge } from "../components/StatusBadge";
+import { GlobalCustomerSearch } from "../components/GlobalCustomerSearch";
 import { fmtMoney } from "../lib/status";
 
 export default function Dashboard() {
@@ -24,6 +25,8 @@ export default function Dashboard() {
 
   return (
     <div className="p-4 space-y-4">
+      <GlobalCustomerSearch />
+
       <div className="text-ops-dim text-[11px] tracking-widest uppercase">TODAY'S OPERATIONS — {data.date}</div>
 
       <div className="grid grid-cols-7 gap-3">
