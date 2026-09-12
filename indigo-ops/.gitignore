@@ -3,3 +3,4 @@ dist/
 *.log
 server/prisma/dev.db
 server/prisma/dev.db-journal
+.claude-flow/
