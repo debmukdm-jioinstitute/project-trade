@@ -1,0 +1,280 @@
+// INDIGO OPS // Airline Operations Back Office — Prototype/Simulation
+// Local SQLite schema. Mock data only. Not connected to any real airline system.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Aircraft {
+  id           String   @id @default(cuid())
+  registration String   @unique
+  type         String
+  configuration String  // e.g. "180Y" or "12C168Y"
+  seatCapacity Int
+  businessSeats Int     @default(0)
+  status       String   @default("ACTIVE") // ACTIVE, MAINTENANCE, GROUNDED
+  flights      Flight[]
+  createdAt    DateTime @default(now())
+}
+
+model Gate {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g. A12
+  terminal    String
+  status      String   @default("AVAILABLE") // AVAILABLE, ASSIGNED, BOARDING, FINAL_CALL, CLOSED
+  flights     Flight[]
+}
+
+model Flight {
+  id              String   @id @default(cuid())
+  flightNumber    String
+  origin          String
+  destination     String
+  departureDate   String   // YYYY-MM-DD
+  std             String   // scheduled departure time HH:mm
+  etd              String? // estimated departure
+  sta             String   // scheduled arrival
+  eta             String?
+  aircraftId      String?
+  aircraft        Aircraft? @relation(fields: [aircraftId], references: [id])
+  gateId          String?
+  gate            Gate?     @relation(fields: [gateId], references: [id])
+  terminal        String   @default("T2")
+  crew            String   @default("CREW ASSIGNED")
+  status          String   @default("SCHEDULED")
+  delayMinutes    Int      @default(0)
+  checkinOpen     Boolean  @default(false)
+  boardingOpen    Boolean  @default(false)
+  departedAt      DateTime?
+  landedAt        DateTime?
+  closedAt        DateTime?
+  bookings        Booking[]
+  seats           Seat[]
+  boardingRecords BoardingRecord[]
+  operations      FlightOperation[]
+  baggage         Baggage[]
+  mealVouchers    MealVoucher[]
+  loungePasses    LoungePass[]
+  boardingPasses  BoardingPass[]
+  inboundTransfers  TransferPassenger[] @relation("InboundFlight")
+  outboundTransfers TransferPassenger[] @relation("OutboundFlight")
+  createdAt       DateTime @default(now())
+
+  @@unique([flightNumber, departureDate])
+}
+
+model Seat {
+  id        String  @id @default(cuid())
+  flightId  String
+  flight    Flight  @relation(fields: [flightId], references: [id])
+  seatNumber String // e.g. 14A
+  cabin     String  @default("ECONOMY")
+  status    String  @default("AVAILABLE") // AVAILABLE, HELD, BOOKED, CHECKED-IN, BLOCKED, NO-SHOW
+  bookingId String? @unique
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  @@unique([flightId, seatNumber])
+}
+
+model Passenger {
+  id          String   @id @default(cuid())
+  name        String
+  dob         String?
+  gender      String?
+  mobile      String?
+  email       String?
+  passportNo  String?
+  bookings    Booking[]
+  createdAt   DateTime @default(now())
+}
+
+model Booking {
+  id              String   @id @default(cuid())
+  pnr             String   @unique
+  passengerId     String
+  passenger       Passenger @relation(fields: [passengerId], references: [id])
+  flightId        String
+  flight          Flight   @relation(fields: [flightId], references: [id])
+  fareType        String   @default("SAVER")
+  status          String   @default("CONFIRMED") // CONFIRMED, CANCELLED
+  baggageAllowanceKg Int   @default(15)
+  mealSelection   String?
+  specialAssistance String?
+  paymentStatus   String   @default("PAID")
+  checkedIn       Boolean  @default(false)
+  checkedInAt     DateTime?
+  boarded         Boolean  @default(false)
+  boardedAt       DateTime?
+  noShow          Boolean  @default(false)
+  offloaded       Boolean  @default(false)
+  deplaned        Boolean  @default(false)
+  deplanedAt      DateTime?
+  boardingGroup   String   @default("3")
+  sequenceNumber  Int?
+  seat            Seat?
+  baggage         Baggage[]
+  baggageCharges  BaggageCharge[]
+  mealVouchers    MealVoucher[]
+  loungePasses    LoungePass[]
+  boardingPasses  BoardingPass[]
+  specialServices SpecialService[]
+  documents       Document[]
+  payments        Payment[]
+  transfer        TransferPassenger?
+  createdAt       DateTime @default(now())
+}
+
+model Baggage {
+  id            String   @id @default(cuid())
+  tagNumber     String   @unique
+  bookingId     String
+  booking       Booking  @relation(fields: [bookingId], references: [id])
+  flightId      String
+  flight        Flight   @relation(fields: [flightId], references: [id])
+  weightKg      Float
+  bagType       String   @default("CHECKED")
+  destination   String
+  status        String   @default("CREATED") // CREATED, ACCEPTED, SECURITY_CLEARED, SORTED, LOADED, TRANSFER, ARRIVED, CLAIMED, HELD, UNLOADED
+  createdAt     DateTime @default(now())
+}
+
+model BaggageCharge {
+  id            String   @id @default(cuid())
+  bookingId     String
+  booking       Booking  @relation(fields: [bookingId], references: [id])
+  allowanceKg   Float
+  actualKg      Float
+  excessKg      Float
+  ratePerKg     Int      @default(600)
+  totalCharge   Int
+  paymentStatus String   @default("PENDING") // PENDING, PAID
+  transactionId String?
+  createdAt     DateTime @default(now())
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  bookingId     String
+  booking       Booking  @relation(fields: [bookingId], references: [id])
+  purpose       String   // BAGGAGE, VOUCHER, LOUNGE, FARE
+  amount        Int
+  transactionId String   @unique
+  status        String   @default("SUCCESS")
+  createdAt     DateTime @default(now())
+}
+
+model BoardingPass {
+  id              String   @id @default(cuid())
+  documentNo      String   @unique
+  bookingId       String
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  flightId        String
+  flight          Flight   @relation(fields: [flightId], references: [id])
+  seatNumber      String
+  boardingGroup   String
+  sequenceNumber  Int
+  gate            String?
+  boardingTime    String?
+  status          String   @default("VALID") // VALID, VOIDED
+  version         Int      @default(1)
+  qrPayload       String
+  createdAt       DateTime @default(now())
+}
+
+model MealVoucher {
+  id          String   @id @default(cuid())
+  voucherNo   String   @unique
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  flightId    String
+  flight      Flight   @relation(fields: [flightId], references: [id])
+  mealType    String   // STANDARD, VEGETARIAN, NON_VEGETARIAN, SNACK, BEVERAGE, SPECIAL
+  gate        String?
+  validity    String
+  status      String   @default("ISSUED") // ISSUED, REDEEMED, EXPIRED, CANCELLED
+  qrPayload   String
+  createdAt   DateTime @default(now())
+}
+
+model LoungePass {
+  id          String   @id @default(cuid())
+  passId      String   @unique
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  flightId    String
+  flight      Flight   @relation(fields: [flightId], references: [id])
+  airport     String
+  terminal    String
+  lounge      String   @default("INDIGO LOUNGE")
+  accessType  String   @default("COMPLIMENTARY") // COMPLIMENTARY, PAID, ELIGIBILITY_BASED
+  validity    String
+  status      String   @default("ISSUED") // ISSUED, USED, EXPIRED, CANCELLED
+  qrPayload   String
+  createdAt   DateTime @default(now())
+}
+
+model BoardingRecord {
+  id          String   @id @default(cuid())
+  flightId    String
+  flight      Flight   @relation(fields: [flightId], references: [id])
+  bookingId   String
+  action      String   // BOARD, UNDO_BOARD, NO_SHOW, OFFLOAD
+  timestamp   DateTime @default(now())
+}
+
+model FlightOperation {
+  id          String   @id @default(cuid())
+  flightId    String
+  flight      Flight   @relation(fields: [flightId], references: [id])
+  event       String   // e.g. GATE_CLOSED, DEPARTED, LANDED, ARRIVAL_GATE_ASSIGNED, CLOSED
+  detail      String?
+  timestamp   DateTime @default(now())
+}
+
+model SpecialService {
+  id          String   @id @default(cuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  serviceType String   // WHEELCHAIR, UNACCOMPANIED_MINOR, SPECIAL_MEAL, INFANT, MEDICAL, PRIORITY_BOARDING, EXTRA_BAGGAGE, SPORTS_EQUIPMENT
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  documentId  String   @unique
+  type        String   // BOARDING_PASS, BAGGAGE_TAG, MEAL_VOUCHER, LOUNGE_PASS, BAGGAGE_RECEIPT, BOOKING_CONFIRMATION, OPERATIONAL_RECEIPT
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  flightNumber String?
+  status      String   @default("ACTIVE")
+  version     Int      @default(1)
+  payload     String   // JSON blob of document content
+  createdAt   DateTime @default(now())
+}
+
+model TransferPassenger {
+  id                String   @id @default(cuid())
+  bookingId         String   @unique
+  booking           Booking  @relation(fields: [bookingId], references: [id])
+  inboundFlightId   String
+  inboundFlight     Flight   @relation("InboundFlight", fields: [inboundFlightId], references: [id])
+  outboundFlightId  String
+  outboundFlight    Flight   @relation("OutboundFlight", fields: [outboundFlightId], references: [id])
+  connectionMinutes Int
+  createdAt         DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  actor       String   @default("OPS")
+  category    String   // FLIGHT, BOOKING, CHECKIN, BAGGAGE, VOUCHER, LOUNGE, BOARDING, GATE, DEPARTURE, ARRIVAL, SYSTEM
+  reference   String?  // PNR / flight number / tag etc
+  message     String
+}

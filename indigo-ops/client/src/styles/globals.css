@@ -1,0 +1,107 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ops-bg text-ops-text;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #4a5cf5;
+  color: #fff;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #05070c;
+}
+::-webkit-scrollbar-thumb {
+  background: #1c2536;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a3652;
+}
+
+.panel {
+  @apply bg-ops-panel border border-ops-border;
+}
+
+.panel-header {
+  @apply flex items-center justify-between border-b border-ops-border px-3 py-2 text-[11px] tracking-widest text-ops-dim uppercase;
+}
+
+table.ops-table {
+  @apply w-full text-left border-collapse text-[12px];
+}
+table.ops-table th {
+  @apply text-ops-dim font-normal uppercase text-[10px] tracking-wider border-b border-ops-border px-2 py-2 sticky top-0 bg-ops-panel;
+}
+table.ops-table td {
+  @apply border-b border-ops-border/60 px-2 py-1.5 text-ops-text;
+}
+table.ops-table tbody tr:hover {
+  @apply bg-ops-panel2 cursor-pointer;
+}
+
+.btn {
+  @apply border border-ops-border2 px-2.5 py-1 text-[11px] uppercase tracking-wide text-ops-text hover:border-ops-indigoBright hover:text-ops-indigoBright transition-colors;
+}
+.btn-primary {
+  @apply border border-ops-indigo bg-ops-indigo/20 text-ops-indigoBright hover:bg-ops-indigo/30;
+}
+.btn-danger {
+  @apply border border-ops-red/60 text-ops-red hover:bg-ops-red/10;
+}
+.btn:disabled {
+  @apply opacity-40 cursor-not-allowed hover:border-ops-border2 hover:text-ops-text;
+}
+
+.input {
+  @apply bg-ops-bg border border-ops-border2 px-2 py-1.5 text-ops-text placeholder:text-ops-dim focus:outline-none focus:border-ops-indigoBright text-[12px];
+}
+
+.badge {
+  @apply inline-block px-1.5 py-0.5 text-[10px] uppercase tracking-wide border;
+}
+.badge-green { @apply border-ops-green/50 text-ops-green bg-ops-green/10; }
+.badge-amber { @apply border-ops-amber/50 text-ops-amber bg-ops-amber/10; }
+.badge-red { @apply border-ops-red/50 text-ops-red bg-ops-red/10; }
+.badge-cyan { @apply border-ops-cyan/50 text-ops-cyan bg-ops-cyan/10; }
+.badge-dim { @apply border-ops-border2 text-ops-dim; }
+
+.crt-scan {
+  background-image: linear-gradient(rgba(255,255,255,0.015) 50%, rgba(0,0,0,0) 50%);
+  background-size: 100% 3px;
+  pointer-events: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area, .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+}
