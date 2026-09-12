@@ -221,3 +221,74 @@ export interface DashboardData {
   }[];
   alerts: { level: "warn" | "ok"; message: string }[];
 }
+
+export interface FlightManifest {
+  flight: {
+    flightNumber: string;
+    origin: string;
+    destination: string;
+    departureDate: string;
+    std: string;
+    etd: string | null;
+    sta: string;
+    eta: string | null;
+    status: string;
+    terminal: string;
+    crew: string;
+    delayMinutes: number;
+    aircraft: { registration: string; type: string; configuration: string; seatCapacity: number } | null;
+    gate: { code: string; terminal: string } | null;
+  };
+  checkpoints: {
+    totalPax: number;
+    checkedIn: number;
+    bagDrop: number;
+    securityCleared: number;
+    loungeUsed: number;
+    boarded: number;
+    noShow: number;
+    offloaded: number;
+    deplaned: number;
+    bagsTotal: number;
+    bagsLoaded: number;
+    excessBaggageRevenue: number;
+  };
+  passengers: {
+    pnr: string;
+    name: string;
+    mobile: string | null;
+    email: string | null;
+    seat: string | null;
+    fareType: string;
+    checkedIn: boolean;
+    bagDrop: boolean;
+    securityCleared: boolean;
+    loungeUsed: boolean;
+    boarded: boolean;
+    noShow: boolean;
+    offloaded: boolean;
+    deplaned: boolean;
+    boardingPass: boolean;
+    specialServices: string[];
+  }[];
+  baggage: {
+    tagNumber: string;
+    pnr: string;
+    passenger: string;
+    weightKg: number;
+    bagType: string;
+    destination: string;
+    status: string;
+  }[];
+  excessCharges: {
+    pnr: string;
+    passenger: string;
+    excessKg: number;
+    ratePerKg: number;
+    totalCharge: number;
+    paymentStatus: string;
+  }[];
+  mealVouchers: { voucherNo: string; pnr: string; passenger: string; mealType: string; status: string }[];
+  loungePasses: { passId: string; pnr: string; passenger: string; lounge: string; accessType: string; status: string }[];
+  generatedAt: string;
+}

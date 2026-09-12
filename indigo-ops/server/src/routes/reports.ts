@@ -196,6 +196,146 @@ reportsRouter.get(
   })
 );
 
+// Full flight manifest / data report — flight data, customer checkpoints,
+// baggage, meal (food choice) vouchers, and lounge usage — for the Flight
+// Data Report module (view on screen + dot-matrix courier download).
+reportsRouter.get(
+  "/flight/:flightId/manifest",
+  handle(async (req, res) => {
+    const flight = await prisma.flight.findUnique({
+      where: { id: req.params.flightId },
+      include: {
+        aircraft: true,
+        gate: true,
+        bookings: {
+          include: {
+            passenger: true,
+            seat: true,
+            baggage: true,
+            baggageCharges: true,
+            mealVouchers: true,
+            loungePasses: true,
+            specialServices: true,
+            boardingPasses: true,
+          },
+          orderBy: { sequenceNumber: "asc" },
+        },
+      },
+    });
+    if (!flight) {
+      return res.status(404).json({ error: { code: "OPS-404", title: "FLIGHT NOT FOUND", message: "Flight not found." } });
+    }
+
+    const activeBookings = flight.bookings.filter((b) => b.status !== "CANCELLED");
+
+    const passengers = activeBookings.map((b) => ({
+      pnr: b.pnr,
+      name: b.passenger.name,
+      mobile: b.passenger.mobile,
+      email: b.passenger.email,
+      seat: b.seat?.seatNumber ?? null,
+      fareType: b.fareType,
+      checkedIn: b.checkedIn,
+      bagDrop: b.baggage.length > 0,
+      securityCleared: b.baggage.some((bg) => ["SECURITY_CLEARED", "SORTED", "LOADED", "ARRIVED", "CLAIMED"].includes(bg.status)),
+      loungeUsed: b.loungePasses.some((l) => l.status === "USED"),
+      boarded: b.boarded,
+      noShow: b.noShow,
+      offloaded: b.offloaded,
+      deplaned: b.deplaned,
+      boardingPass: b.boardingPasses.some((bp) => bp.status === "VALID"),
+      specialServices: b.specialServices.map((s) => s.serviceType),
+    }));
+
+    const baggage = activeBookings.flatMap((b) =>
+      b.baggage.map((bg) => ({
+        tagNumber: bg.tagNumber,
+        pnr: b.pnr,
+        passenger: b.passenger.name,
+        weightKg: bg.weightKg,
+        bagType: bg.bagType,
+        destination: bg.destination,
+        status: bg.status,
+      }))
+    );
+
+    const excessCharges = activeBookings.flatMap((b) =>
+      b.baggageCharges.map((c) => ({
+        pnr: b.pnr,
+        passenger: b.passenger.name,
+        excessKg: c.excessKg,
+        ratePerKg: c.ratePerKg,
+        totalCharge: c.totalCharge,
+        paymentStatus: c.paymentStatus,
+      }))
+    );
+
+    const mealVouchers = activeBookings.flatMap((b) =>
+      b.mealVouchers.map((v) => ({
+        voucherNo: v.voucherNo,
+        pnr: b.pnr,
+        passenger: b.passenger.name,
+        mealType: v.mealType,
+        status: v.status,
+      }))
+    );
+
+    const loungePasses = activeBookings.flatMap((b) =>
+      b.loungePasses.map((l) => ({
+        passId: l.passId,
+        pnr: b.pnr,
+        passenger: b.passenger.name,
+        lounge: l.lounge,
+        accessType: l.accessType,
+        status: l.status,
+      }))
+    );
+
+    const checkpoints = {
+      totalPax: activeBookings.length,
+      checkedIn: activeBookings.filter((b) => b.checkedIn).length,
+      bagDrop: activeBookings.filter((b) => b.baggage.length > 0).length,
+      securityCleared: passengers.filter((p) => p.securityCleared).length,
+      loungeUsed: passengers.filter((p) => p.loungeUsed).length,
+      boarded: activeBookings.filter((b) => b.boarded).length,
+      noShow: activeBookings.filter((b) => b.noShow).length,
+      offloaded: activeBookings.filter((b) => b.offloaded).length,
+      deplaned: activeBookings.filter((b) => b.deplaned).length,
+      bagsTotal: baggage.length,
+      bagsLoaded: baggage.filter((bg) => ["LOADED", "ARRIVED", "CLAIMED"].includes(bg.status)).length,
+      excessBaggageRevenue: excessCharges.filter((c) => c.paymentStatus === "PAID").reduce((s, c) => s + c.totalCharge, 0),
+    };
+
+    res.json({
+      flight: {
+        flightNumber: flight.flightNumber,
+        origin: flight.origin,
+        destination: flight.destination,
+        departureDate: flight.departureDate,
+        std: flight.std,
+        etd: flight.etd,
+        sta: flight.sta,
+        eta: flight.eta,
+        status: flight.status,
+        terminal: flight.terminal,
+        crew: flight.crew,
+        delayMinutes: flight.delayMinutes,
+        aircraft: flight.aircraft
+          ? { registration: flight.aircraft.registration, type: flight.aircraft.type, configuration: flight.aircraft.configuration, seatCapacity: flight.aircraft.seatCapacity }
+          : null,
+        gate: flight.gate ? { code: flight.gate.code, terminal: flight.gate.terminal } : null,
+      },
+      checkpoints,
+      passengers,
+      baggage,
+      excessCharges,
+      mealVouchers,
+      loungePasses,
+      generatedAt: new Date().toISOString(),
+    });
+  })
+);
+
 reportsRouter.get(
   "/flight-closure",
   handle(async (req, res) => {
