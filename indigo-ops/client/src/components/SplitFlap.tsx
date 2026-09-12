@@ -2,10 +2,20 @@ import { useEffect, useRef, useState } from "react";
 
 // Classic split-flap (Solari board) character wheel order — the physical
 // flap board rotates forward through this sequence to reach the target
-// character, never backward, which is why "N" -> "A" takes a full lap.
-const WHEEL = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .:/'-→";
+// character, never backward. Digits come first so a clock's every-second
+// digit rollovers (e.g. "9" -> "0") stay cheap; letters only cost more for
+// infrequently-changing text fields.
+const WHEEL = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ .:/'-→";
 const FLAP_MS = 45; // time per flap tick
 const MIN_FLUTTER = 4; // every refresh flutters at least this many ticks, even if the char didn't change
+// A forward-only wheel can need up to WHEEL.length-1 ticks for one character
+// (e.g. wrapping through every letter). Left uncapped, a field that updates
+// faster than that animation completes (the once-a-second clock digits, most
+// notably) gets its animation cut off mid-flight, stranding a wrong
+// intermediate character on screen permanently. Capping the tick count and
+// taking bigger wheel strides per tick when the true distance is longer
+// keeps every animation's wall-clock time bounded regardless of distance.
+const MAX_TICKS = 10;
 
 function wheelIndex(ch: string): number {
   const i = WHEEL.indexOf(ch.toUpperCase());
@@ -28,15 +38,21 @@ function Flap({ target, refreshKey, delay }: { target: string; refreshKey: numbe
     const startIdx = wheelIndex(shown);
     const endIdx = wheelIndex(target);
     const rawSteps = endIdx >= startIdx ? endIdx - startIdx : WHEEL.length - startIdx + endIdx;
-    const steps = Math.max(rawSteps, rawSteps === 0 ? MIN_FLUTTER : rawSteps);
+    const distance = rawSteps === 0 ? MIN_FLUTTER : rawSteps;
+    const ticks = Math.min(distance, MAX_TICKS);
+    const stride = distance / ticks; // may be >1: take bigger wheel strides so long trips still finish in `ticks` steps
 
     let tick = 0;
     const kickoff = window.setTimeout(function step() {
       tick++;
       setFlapping(true);
-      const idx = (startIdx + tick) % WHEEL.length;
-      setShown(tick >= steps ? target : WHEEL[idx]);
-      if (tick < steps) {
+      if (tick >= ticks) {
+        setShown(target); // always land exactly on target, regardless of wheel rounding
+      } else {
+        const idx = (startIdx + Math.round(stride * tick)) % WHEEL.length;
+        setShown(WHEEL[idx]);
+      }
+      if (tick < ticks) {
         timers.current.push(window.setTimeout(step, FLAP_MS));
       } else {
         window.setTimeout(() => setFlapping(false), FLAP_MS);
