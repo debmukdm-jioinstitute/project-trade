@@ -5,6 +5,7 @@ import { CommandConsole } from "./components/CommandConsole";
 import { GlobalSearch } from "./components/GlobalSearch";
 import { ToastProvider } from "./components/Toast";
 import { LockScreen, isUnlocked, lockSession } from "./components/LockScreen";
+import { FaceEnroll } from "./components/FaceLock";
 
 import Dashboard from "./pages/Dashboard";
 import Flights from "./pages/Flights";
@@ -30,6 +31,7 @@ function AppShell() {
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [locked, setLocked] = useState(() => !isUnlocked());
+  const [enrollOpen, setEnrollOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -86,7 +88,12 @@ function AppShell() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <TerminalHeader onNav={navigate} current={location.pathname} onLock={() => { lockSession(); setLocked(true); }} />
+      <TerminalHeader
+        onNav={navigate}
+        current={location.pathname}
+        onLock={() => { lockSession(); setLocked(true); }}
+        onEnrollFace={() => setEnrollOpen(true)}
+      />
       <div className="flex-1 overflow-y-auto">
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -116,6 +123,7 @@ function AppShell() {
       </div>
       {consoleOpen && <CommandConsole onClose={() => setConsoleOpen(false)} onNavigate={(t) => { setConsoleOpen(false); resolveTarget(t); }} />}
       {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} onNavigate={(t) => { setSearchOpen(false); resolveTarget(t); }} />}
+      {enrollOpen && <FaceEnroll onClose={() => setEnrollOpen(false)} />}
     </div>
   );
 }
