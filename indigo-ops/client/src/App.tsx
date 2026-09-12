@@ -23,6 +23,7 @@ import SystemStatus from "./pages/SystemStatus";
 import Verify from "./pages/Verify";
 import Transfers from "./pages/Transfers";
 import PassengerSearch from "./pages/PassengerSearch";
+import FIDS from "./pages/FIDS";
 
 function AppShell() {
   const [consoleOpen, setConsoleOpen] = useState(false);
@@ -100,6 +101,7 @@ function AppShell() {
           <Route path="/verify" element={<Verify />} />
           <Route path="/transfers" element={<Transfers />} />
           <Route path="/passengers" element={<PassengerSearch />} />
+          <Route path="/fids" element={<FIDS />} />
         </Routes>
       </div>
       <div className="border-t border-ops-border bg-ops-panel px-3 py-1.5 text-[10px] text-ops-dim flex items-center justify-between">

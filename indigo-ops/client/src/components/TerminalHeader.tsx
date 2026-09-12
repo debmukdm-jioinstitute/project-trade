@@ -84,6 +84,14 @@ export function TerminalHeader({ onNav, current }: { onNav: (path: string) => vo
         >
           AUDIT LOG
         </button>
+        <button
+          onClick={() => onNav("/fids")}
+          className={`px-3 py-2 uppercase tracking-wide border-b-2 ${
+            current.startsWith("/fids") ? "border-ops-indigoBright text-ops-indigoBright" : "border-transparent text-ops-dim hover:text-ops-text"
+          }`}
+        >
+          FIDS BOARD
+        </button>
         <div className="ml-auto flex items-center gap-2 pr-2 text-ops-dim">
           <span>[/] SEARCH</span>
           <span>[CTRL+K] COMMAND</span>
