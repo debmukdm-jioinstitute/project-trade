@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { suggestCommands, matchedKeyword, type CommandSpec } from "../lib/commands";
+import { renderTerminalLine } from "../lib/terminalFormat";
 
 interface CommandResult {
   lines: string[];
@@ -138,11 +139,7 @@ export function CommandConsole({
                   OPS&gt; <span className="text-ops-text">{h.cmd}</span>
                 </div>
               )}
-              {h.lines.map((l, j) => (
-                <div key={j} className={l.startsWith("ERROR") ? "text-ops-red" : "text-ops-dim"}>
-                  {l || " "}
-                </div>
-              ))}
+              {h.lines.map((l, j) => renderTerminalLine(l, j))}
             </div>
           ))}
           <div ref={bottomRef} />
