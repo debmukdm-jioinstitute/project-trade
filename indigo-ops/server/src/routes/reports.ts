@@ -48,9 +48,12 @@ reportsRouter.get(
 reportsRouter.get(
   "/passengers",
   handle(async (req, res) => {
-    const { flightId } = req.query as { flightId?: string };
+    const { flightId, date } = req.query as { flightId?: string; date?: string };
     const bookings = await prisma.booking.findMany({
-      where: flightId ? { flightId } : {},
+      where: {
+        ...(flightId ? { flightId } : {}),
+        ...(date ? { flight: { departureDate: date } } : {}),
+      },
       include: { passenger: true, flight: true, seat: true },
     });
     const rows = bookings.map((b) => ({
@@ -70,9 +73,12 @@ reportsRouter.get(
 reportsRouter.get(
   "/baggage",
   handle(async (req, res) => {
-    const { flightId } = req.query as { flightId?: string };
+    const { flightId, date } = req.query as { flightId?: string; date?: string };
     const bags = await prisma.baggage.findMany({
-      where: flightId ? { flightId } : {},
+      where: {
+        ...(flightId ? { flightId } : {}),
+        ...(date ? { flight: { departureDate: date } } : {}),
+      },
       include: { booking: { include: { passenger: true } } },
     });
     const rows = bags.map((b) => ({
@@ -90,7 +96,9 @@ reportsRouter.get(
 reportsRouter.get(
   "/excess-baggage-revenue",
   handle(async (req, res) => {
+    const { date } = req.query as { date?: string };
     const charges = await prisma.baggageCharge.findMany({
+      where: date ? { booking: { flight: { departureDate: date } } } : {},
       include: { booking: { include: { passenger: true, flight: true } } },
       orderBy: { createdAt: "desc" },
     });
@@ -110,7 +118,9 @@ reportsRouter.get(
 reportsRouter.get(
   "/meal-vouchers",
   handle(async (req, res) => {
+    const { date } = req.query as { date?: string };
     const vouchers = await prisma.mealVoucher.findMany({
+      where: date ? { flight: { departureDate: date } } : {},
       include: { booking: { include: { passenger: true } }, flight: true },
       orderBy: { createdAt: "desc" },
     });
@@ -129,7 +139,9 @@ reportsRouter.get(
 reportsRouter.get(
   "/lounge-usage",
   handle(async (req, res) => {
+    const { date } = req.query as { date?: string };
     const passes = await prisma.loungePass.findMany({
+      where: date ? { flight: { departureDate: date } } : {},
       include: { booking: { include: { passenger: true } }, flight: true },
       orderBy: { createdAt: "desc" },
     });

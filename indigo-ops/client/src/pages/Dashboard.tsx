@@ -5,10 +5,12 @@ import { StatsCard } from "../components/StatsCard";
 import { AlertPanel } from "../components/AlertPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { GlobalCustomerSearch } from "../components/GlobalCustomerSearch";
+import { StatDetailModal, type StatKind } from "../components/StatDetailModal";
 import { fmtMoney } from "../lib/status";
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [detail, setDetail] = useState<StatKind | null>(null);
   const navigate = useNavigate();
 
   async function load() {
@@ -30,24 +32,26 @@ export default function Dashboard() {
       <div className="text-ops-dim text-[11px] tracking-widest uppercase">TODAY'S OPERATIONS — {data.date}</div>
 
       <div className="grid grid-cols-7 gap-3">
-        <StatsCard label="Scheduled" value={s.flightsScheduled} />
-        <StatsCard label="Boarding" value={s.flightsBoarding} tone="amber" />
-        <StatsCard label="Departed" value={s.flightsDeparted} tone="green" />
-        <StatsCard label="Arrived" value={s.flightsArrived} tone="green" />
-        <StatsCard label="Delayed" value={s.delayed} tone="amber" />
-        <StatsCard label="Cancelled" value={s.cancelled} tone="red" />
-        <StatsCard label="Excess Bag Revenue" value={fmtMoney(s.excessRevenue)} tone="green" />
+        <StatsCard label="Scheduled" value={s.flightsScheduled} onClick={() => setDetail("SCHEDULED")} />
+        <StatsCard label="Boarding" value={s.flightsBoarding} tone="amber" onClick={() => setDetail("BOARDING")} />
+        <StatsCard label="Departed" value={s.flightsDeparted} tone="green" onClick={() => setDetail("DEPARTED")} />
+        <StatsCard label="Arrived" value={s.flightsArrived} tone="green" onClick={() => setDetail("ARRIVED")} />
+        <StatsCard label="Delayed" value={s.delayed} tone="amber" onClick={() => setDetail("DELAYED")} />
+        <StatsCard label="Cancelled" value={s.cancelled} tone="red" onClick={() => setDetail("CANCELLED")} />
+        <StatsCard label="Excess Bag Revenue" value={fmtMoney(s.excessRevenue)} tone="green" onClick={() => setDetail("EXCESS_REVENUE")} />
       </div>
       <div className="grid grid-cols-6 gap-3">
-        <StatsCard label="Pax Checked-in" value={s.paxCheckedIn} />
-        <StatsCard label="Pax Boarded" value={s.paxBoarded} />
-        <StatsCard label="Bags Checked" value={s.bagsChecked} />
-        <StatsCard label="Bags Loaded" value={s.bagsLoaded} />
-        <StatsCard label="Meal Vouchers" value={s.mealVouchers} />
-        <StatsCard label="Lounge Passes" value={s.loungePasses} />
+        <StatsCard label="Pax Checked-in" value={s.paxCheckedIn} onClick={() => setDetail("CHECKED_IN")} />
+        <StatsCard label="Pax Boarded" value={s.paxBoarded} onClick={() => setDetail("BOARDED")} />
+        <StatsCard label="Bags Checked" value={s.bagsChecked} onClick={() => setDetail("BAGS_CHECKED")} />
+        <StatsCard label="Bags Loaded" value={s.bagsLoaded} onClick={() => setDetail("BAGS_LOADED")} />
+        <StatsCard label="Meal Vouchers" value={s.mealVouchers} onClick={() => setDetail("MEAL_VOUCHERS")} />
+        <StatsCard label="Lounge Passes" value={s.loungePasses} onClick={() => setDetail("LOUNGE_PASSES")} />
       </div>
 
       <AlertPanel alerts={data.alerts} />
+
+      {detail && <StatDetailModal kind={detail} date={data.date} board={data.board} onClose={() => setDetail(null)} />}
 
       <div className="panel">
         <div className="panel-header">
