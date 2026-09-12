@@ -276,6 +276,8 @@ reportsRouter.get(
         pnr: b.pnr,
         passenger: b.passenger.name,
         mealType: v.mealType,
+        mealItem: v.mealItem,
+        specialRequest: v.specialRequest,
         status: v.status,
       }))
     );

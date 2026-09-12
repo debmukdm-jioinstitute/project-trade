@@ -126,10 +126,11 @@ export function buildDotMatrixReport(m: FlightManifest): string {
     lines.push("  NO MEAL VOUCHERS ISSUED FOR THIS FLIGHT.");
   } else {
     const mealCols = [
-      { text: "VOUCHER NO.", width: 16 },
       { text: "PNR", width: 8 },
-      { text: "PASSENGER", width: 20 },
-      { text: "FOOD CHOICE", width: 16 },
+      { text: "PASSENGER", width: 16 },
+      { text: "MEAL TYPE", width: 14 },
+      { text: "FOOD ITEM", width: 24 },
+      { text: "BEVERAGE", width: 18 },
       { text: "STATUS", width: 10 },
     ];
     lines.push(row(mealCols));
@@ -137,10 +138,11 @@ export function buildDotMatrixReport(m: FlightManifest): string {
     for (const v of m.mealVouchers) {
       lines.push(
         row([
-          { text: v.voucherNo, width: 16 },
           { text: v.pnr, width: 8 },
-          { text: v.passenger.toUpperCase(), width: 20 },
-          { text: v.mealType.replace(/_/g, " "), width: 16 },
+          { text: v.passenger.toUpperCase(), width: 16 },
+          { text: v.mealType.replace(/_/g, " "), width: 14 },
+          { text: (v.mealItem ?? "-").toUpperCase(), width: 24 },
+          { text: (v.specialRequest ?? "-").toUpperCase(), width: 18 },
           { text: v.status, width: 10 },
         ])
       );

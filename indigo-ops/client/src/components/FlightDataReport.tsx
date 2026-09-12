@@ -171,6 +171,8 @@ export function FlightDataReport() {
                       <th>Voucher No.</th>
                       <th>Passenger</th>
                       <th>Meal Type</th>
+                      <th>Food Item</th>
+                      <th>Beverage</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -180,6 +182,8 @@ export function FlightDataReport() {
                         <td>{v.voucherNo}</td>
                         <td>{v.passenger}</td>
                         <td>{v.mealType.replace(/_/g, " ")}</td>
+                        <td>{v.mealItem ?? "-"}</td>
+                        <td>{v.specialRequest ?? "-"}</td>
                         <td>
                           <StatusBadge status={v.status} />
                         </td>

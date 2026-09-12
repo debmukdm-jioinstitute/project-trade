@@ -45,6 +45,7 @@ model Flight {
   gateId          String?
   gate            Gate?     @relation(fields: [gateId], references: [id])
   terminal        String   @default("T2")
+  sectorType      String?  // Domestic, International
   crew            String   @default("CREW ASSIGNED")
   status          String   @default("SCHEDULED")
   delayMinutes    Int      @default(0)
@@ -65,7 +66,7 @@ model Flight {
   outboundTransfers TransferPassenger[] @relation("OutboundFlight")
   createdAt       DateTime @default(now())
 
-  @@unique([flightNumber, departureDate])
+  @@unique([flightNumber, departureDate, std])
 }
 
 model Seat {
@@ -194,6 +195,8 @@ model MealVoucher {
   flightId    String
   flight      Flight   @relation(fields: [flightId], references: [id])
   mealType    String   // STANDARD, VEGETARIAN, NON_VEGETARIAN, SNACK, BEVERAGE, SPECIAL
+  mealItem    String?  // specific dish/food choice, e.g. "Paneer Tikka Sandwich"
+  specialRequest String? // e.g. beverage choice
   gate        String?
   validity    String
   status      String   @default("ISSUED") // ISSUED, REDEEMED, EXPIRED, CANCELLED

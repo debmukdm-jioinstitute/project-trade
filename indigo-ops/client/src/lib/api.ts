@@ -288,7 +288,15 @@ export interface FlightManifest {
     totalCharge: number;
     paymentStatus: string;
   }[];
-  mealVouchers: { voucherNo: string; pnr: string; passenger: string; mealType: string; status: string }[];
+  mealVouchers: {
+    voucherNo: string;
+    pnr: string;
+    passenger: string;
+    mealType: string;
+    mealItem: string | null;
+    specialRequest: string | null;
+    status: string;
+  }[];
   loungePasses: { passId: string; pnr: string; passenger: string; lounge: string; accessType: string; status: string }[];
   generatedAt: string;
 }
