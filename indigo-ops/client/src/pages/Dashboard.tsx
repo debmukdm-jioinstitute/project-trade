@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, DashboardData } from "../lib/api";
 import { StatsCard } from "../components/StatsCard";
 import { AlertPanel } from "../components/AlertPanel";
+import { OpsSuggestionsPanel } from "../components/OpsSuggestionsPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { GlobalCustomerSearch } from "../components/GlobalCustomerSearch";
 import { StatDetailModal, type StatKind } from "../components/StatDetailModal";
@@ -49,6 +50,7 @@ export default function Dashboard() {
         <StatsCard label="Lounge Passes" value={s.loungePasses} onClick={() => setDetail("LOUNGE_PASSES")} />
       </div>
 
+      <OpsSuggestionsPanel suggestions={data.suggestions} />
       <AlertPanel alerts={data.alerts} />
 
       {detail && <StatDetailModal kind={detail} date={data.date} board={data.board} onClose={() => setDetail(null)} />}

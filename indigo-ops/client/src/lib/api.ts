@@ -220,6 +220,14 @@ export interface DashboardData {
     status: string;
   }[];
   alerts: { level: "warn" | "ok"; message: string }[];
+  suggestions: {
+    level: "info" | "warn" | "urgent";
+    flightId: string;
+    flightNumber: string;
+    action: string;
+    message: string;
+    minutesToStd: number;
+  }[];
 }
 
 export interface FlightManifest {

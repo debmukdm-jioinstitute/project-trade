@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { handle } from "../lib/handle.js";
+import { buildOpsSuggestions, type FlightTimingInput } from "../lib/opsSuggestions.js";
 
 export const dashboardRouter = Router();
 
@@ -25,6 +26,8 @@ dashboardRouter.get(
       bagsLoaded = 0,
       excessRevenue = 0;
 
+    const timingInputs: FlightTimingInput[] = [];
+
     const board = flights.map((f) => {
       const active = f.bookings.filter((b) => b.status !== "CANCELLED");
       const checkedIn = active.filter((b) => b.checkedIn).length;
@@ -42,6 +45,20 @@ dashboardRouter.get(
       bagsChecked += bags.length;
       bagsLoaded += loaded.length;
       excessRevenue += active.flatMap((b) => b.baggageCharges).reduce((s, c) => s + (c.paymentStatus === "PAID" ? c.totalCharge : 0), 0);
+
+      timingInputs.push({
+        id: f.id,
+        flightNumber: f.flightNumber,
+        departureDate: f.departureDate,
+        std: f.std,
+        sta: f.sta,
+        status: f.status,
+        checkinOpen: f.checkinOpen,
+        boardingOpen: f.boardingOpen,
+        totalPax: active.length,
+        checkedIn,
+        boarded,
+      });
 
       return {
         id: f.id,
@@ -84,6 +101,8 @@ dashboardRouter.get(
     }
     if (alerts.length === 0) alerts.push({ level: "ok", message: "All operations nominal" });
 
+    const suggestions = buildOpsSuggestions(timingInputs);
+
     res.json({
       date,
       stats: {
@@ -103,6 +122,7 @@ dashboardRouter.get(
       },
       board,
       alerts,
+      suggestions,
     });
   })
 );
